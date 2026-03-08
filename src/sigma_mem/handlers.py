@@ -198,6 +198,14 @@ def _detect_team_from_context(context: str, teams_dir: Path) -> str | None:
     return None
 
 
+def _validate_team_name(teams_dir: Path, team_name: str) -> Path | None:
+    """Validate that team_name resolves within teams_dir. Returns resolved path or None."""
+    team_base = (teams_dir / team_name).resolve()
+    if not team_base.is_relative_to(teams_dir.resolve()):
+        return None
+    return team_base
+
+
 def _detect_agent_identity(
     context: str, team_name: str, teams_dir: Path
 ) -> str | None:
@@ -207,7 +215,10 @@ def _detect_agent_identity(
     and cross-references against the team roster.
     """
     ctx = context.lower()
-    team_dir = teams_dir / team_name / "agents"
+    team_base = _validate_team_name(teams_dir, team_name)
+    if team_base is None:
+        return None
+    team_dir = team_base / "agents"
     if not team_dir.exists():
         return None
 
@@ -219,11 +230,6 @@ def _detect_agent_identity(
             f"i am the {name}", f"as {name}", f"agent {name}",
             f"{name} here", f"{name} reporting",
         ]):
-            return name
-
-    # Fallback: check if agent name appears at all in context
-    for name in agent_names:
-        if name in ctx:
             return name
 
     return None
@@ -404,10 +410,21 @@ def handle_check_integrity(memory_dir: Path = DEFAULT_MEMORY_DIR) -> dict[str, A
 # --- Write handlers ---
 
 
+def _has_arrow_prefix(entry: str) -> bool:
+    """Check if any line in entry starts with → (reserved for navigation links)."""
+    return any(line.strip().startswith("→") for line in entry.splitlines())
+
+
 def handle_store_memory(
     entry: str, file: str = "conv.md", memory_dir: Path = DEFAULT_MEMORY_DIR
 ) -> dict[str, Any]:
     """Append a new entry to a memory file."""
+    if _has_arrow_prefix(entry):
+        return {
+            "error": "Entry contains →-prefixed lines which are reserved for navigation. "
+            "Use |→ within a line instead of starting a line with →.",
+            "_state": "idle",
+        }
     filepath = _validate_path(memory_dir, file)
     if filepath is None:
         return {"error": f"Invalid path: {file}", "_state": "idle"}
@@ -559,7 +576,7 @@ def handle_wake_check(
                 wake_for = part.split("wake-for:")[1].strip()
                 break
         triggers = [t.strip() for t in wake_for.split(",")]
-        matched = [t for t in triggers if any(word in task_lower for word in t.split())]
+        matched = [t for t in triggers if t in task_lower]
         if matched:
             recommendations.append({"agent": agent_name, "matched": matched})
 
@@ -575,17 +592,20 @@ def handle_wake_check(
 def handle_store_team_decision(
     decision: str, by: str, context: str = "",
     team_name: str = "", teams_dir: Path = DEFAULT_TEAMS_DIR,
+    weight: str = "primary",
 ) -> dict[str, Any]:
     """Store an expertise-weighted decision in team shared memory."""
-    team_dir = teams_dir / team_name / "shared"
-    filepath = team_dir / "decisions.md"
+    team_base = _validate_team_name(teams_dir, team_name)
+    if team_base is None:
+        return {"error": f"Invalid team name: {team_name}", "_state": "team_work"}
+    filepath = team_base / "shared" / "decisions.md"
     if not filepath.exists():
         return {"error": f"Decisions file not found for team: {team_name}", "_state": "team_work"}
 
     content = filepath.read_text()
     mem_content, actions = _split_content_and_actions(content)
 
-    entry = f"\n{decision} |by:{by} |weight:primary"
+    entry = f"\n{decision} |by:{by} |weight:{weight}"
     if context:
         entry += f"\n  |ctx: {context}"
 

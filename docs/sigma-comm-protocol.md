@@ -34,49 +34,72 @@ Receiving agent/orchestrator uses these to decide next steps.
 ### Checksum (#)
 Item count for verification. #3 means 3 items in the body.
 
-## Examples
+## Inbox Infrastructure
 
-### Current (prose):
-```
-I've finished reviewing the authentication module. I found three issues:
-1. JWT token expiration is not being validated on refresh
-2. Password hashing uses MD5 instead of bcrypt
-3. No rate limiting on the login endpoint
-I didn't find any issues with the session management or CORS configuration.
-I recommend fixing the JWT issue first since it's the most critical security risk.
-The MD5 migration will need a database migration to rehash existing passwords.
-```
+Agents communicate via markdown inbox files at `~/.claude/teams/{team}/inboxes/{name}.md`.
 
-### ΣComm:
-```
-✓ auth-review: jwt-expiry-no-validate(!), pwd-md5>bcrypt, no-rate-limit-login |¬ session-mgmt, cors |→ fix-jwt(small), fix-hash(needs-db-migration), add-rate-limit(small) |#3
-```
+### Inbox structure
+```markdown
+# inbox — {agent-name}
 
-### More examples:
+## processed
+✓ ux-researcher(26.3.7): _state-feedback, agreed-on-logging |#1
+✓ user(26.3.7): logging-sufficient-for-v0.1 |#1
 
-**Blocked agent:**
-```
-! test-suite: 14/20 pass, 6 fail all in auth-module |¬ api-tests, db-tests |→ need-auth-fix-first |? should I skip auth tests and continue? |#6-fail
+## unread
+## from:tech-architect ts:26.3.7
+◌ registry-coupling: _last_state accessed 5x |→ need-your-take-on-DX-impact |#1
+
+---
 ```
 
-**Progress update:**
+### Inbox processing
+1. Read everything under `## unread`
+2. Process each message
+3. Compress processed messages into ΣComm summaries under `## processed`
+4. Clear `## unread` section
+
+### Writing to a peer's inbox
+Append under their `## unread` section:
 ```
-◌ refactor-api: 3/7 endpoints migrated (users, orders, products) |→ next: payments, inventory, reports, admin |¬ no-breaking-changes-so-far |#3-done-4-remaining
+## from:{your-name} ts:{date}
+{ΣComm message}
+
+---
 ```
 
-**Handoff:**
-```
-✓ schema-design: users(id,email,role,hash,created), sessions(id,user_id,token,expires) |→ ready-for: migration-agent, test-agent |¬ no-admin-table(deferred per decision) |#2-tables
+### Messages from user
+User messages arrive in plain language. Respond via workspace open-questions or your findings section.
+
+## Shared Workspace
+
+Current task lives at `~/.claude/teams/{team}/shared/workspace.md`:
+
+```markdown
+# workspace — {task description}
+## status: active
+
+## task
+{description of current task}
+
+## findings
+### {agent-name}
+{agent writes findings here — ΣComm for efficiency}
+
+## convergence
+{agent-name}: ✓ {summary} |→ {next-available}
+
+## open-questions
+{plain language — things needing user input}
 ```
 
-**Failed task:**
-```
-✗ deploy: build-ok but container-crash-on-start |cause: missing-env-var(DATABASE_URL) |¬ not-code-issue, not-docker-config |→ need: env-config-from-infra-agent |#1-blocker
-```
+### Workspace rules
+1. Write to YOUR section under findings — don't edit peers' sections
+2. After reading peers' findings, write agreements to convergence
+3. Write user-facing questions to open-questions in plain language
+4. Declare your status in convergence when done (✓) or still working (◌)
 
 ## Codebook (for agent system prompts)
-
-This block gets prepended to each agent's system prompt:
 
 ```
 ## ΣComm Protocol
@@ -105,14 +128,24 @@ Agent states (generic):
 - blocked → need external input
 - failed → encountered unrecoverable error
 
-The orchestrator sees → actions from all agents and routes work accordingly,
-just like sigma-mem navigates memory files based on → links.
+## Examples
 
-## Token Savings Estimate
+**Review finding (agent-to-agent):**
+```
+✓ auth-review: jwt-expiry-no-validate(!), pwd-md5>bcrypt, no-rate-limit-login |¬ session-mgmt, cors |→ fix-jwt(small), fix-hash(needs-db-migration), add-rate-limit(small) |#3
+```
 
-Typical prose message: ~80-120 tokens
-ΣComm equivalent: ~20-35 tokens
-Compression: ~3-4x per message
+**Blocked:**
+```
+! test-suite: 14/20 pass, 6 fail in auth-module |¬ api-tests, db-tests |→ need-auth-fix-first |? skip auth tests? |#6-fail
+```
 
-5 agents × 10 messages each × 4x compression = 200 messages worth of budget in 50 messages of tokens.
-Or: same budget, 4x more communication, better coordinated agents.
+**Progress:**
+```
+◌ refactor-api: 3/7 endpoints migrated (users, orders, products) |→ next: payments, inventory, reports, admin |¬ no-breaking-changes-so-far |#3-done-4-remaining
+```
+
+**Convergence declaration:**
+```
+tech-architect: ✓ review-complete |resolved: 4/6, new: 3 |→ ready-for-synthesis
+```

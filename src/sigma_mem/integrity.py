@@ -108,9 +108,14 @@ def verify_file_integrity(filepath: Path) -> dict[str, Any]:
             report["blocks"].append(block_report)
 
             if checksum["valid"] is False:
-                report["warnings"].append(
-                    f"Checksum mismatch: expected {checksum['expected']}, "
-                    f"got {checksum['actual']} in: {line[:60]}..."
-                )
+                report["warnings"].append({
+                    "message": (
+                        f"Checksum mismatch: expected {checksum['expected']}, "
+                        f"got {checksum['actual']} in: {line[:60]}..."
+                    ),
+                    "may_be_conceptual": True,
+                    "expected": checksum["expected"],
+                    "actual": checksum["actual"],
+                })
 
     return report

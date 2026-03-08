@@ -7,11 +7,22 @@ import pytest
 from sigma_mem.handlers import (
     _detect_state,
     _validate_path,
-    handle_recall,
-    handle_store_memory,
-    handle_search_memory,
+    handle_full_refresh,
+    handle_get_conversations,
+    handle_get_corrections,
+    handle_get_decisions,
+    handle_get_meta,
+    handle_get_patterns,
     handle_get_project,
+    handle_get_user_model,
+    handle_log_correction,
+    handle_log_decision,
+    handle_log_failure,
+    handle_recall,
+    handle_search_memory,
+    handle_store_memory,
     handle_update_belief,
+    handle_verify_beliefs,
 )
 
 
@@ -120,3 +131,153 @@ class TestHandleSearchMemory:
         f.write_text("nothing relevant here\n")
         result = handle_search_memory("zzzzz", tmp_path)
         assert len(result["matches"]) == 0
+
+
+class TestArrowPrefixProtection:
+    def test_arrow_prefixed_entry_rejected(self, tmp_path):
+        f = tmp_path / "conv.md"
+        f.write_text("existing content\n")
+        result = handle_store_memory("→ see issue #42 for context", "conv.md", tmp_path)
+        assert "error" in result
+        # Original content unchanged
+        assert "existing content" in f.read_text()
+        assert "issue #42" not in f.read_text()
+
+    def test_inline_arrow_allowed(self, tmp_path):
+        f = tmp_path / "conv.md"
+        f.write_text("existing content\n")
+        result = handle_store_memory("found issue |→ fix next", "conv.md", tmp_path)
+        assert "stored" in result
+        assert "fix next" in f.read_text()
+
+    def test_multiline_with_arrow_line_rejected(self, tmp_path):
+        f = tmp_path / "conv.md"
+        f.write_text("existing content\n")
+        result = handle_store_memory("line one\n→ line two", "conv.md", tmp_path)
+        assert "error" in result
+
+
+@pytest.fixture
+def mem_dir(tmp_path):
+    """Create a minimal memory directory with common files."""
+    (tmp_path / "MEMORY.md").write_text(
+        "U[test user|1|26.3]\nC[confirmed belief|1|26.3]\nC~[tentative guess|1|26.3]\n"
+    )
+    (tmp_path / "decisions.md").write_text("26.3.7|use-postgres|why: fast\n")
+    (tmp_path / "corrections.md").write_text("26.3.6|was wrong|fixed it\n")
+    (tmp_path / "user.md").write_text("prefers simple explanations\n")
+    (tmp_path / "patterns.md").write_text("pattern: converges on same bugs\n")
+    (tmp_path / "conv.md").write_text("26.3.7|discussed architecture\n")
+    (tmp_path / "failures.md").write_text("26.3.6|tried X|didn't work\n")
+    (tmp_path / "meta.md").write_text("v0.1: initial system\n")
+    (tmp_path / "projects.md").write_text("sigma-mem: memory MCP server\n")
+    return tmp_path
+
+
+class TestHandleGetDecisions:
+    def test_reads_decisions(self, mem_dir):
+        result = handle_get_decisions(mem_dir)
+        assert "use-postgres" in result["decisions"]
+        assert result["_state"] == "project_work"
+
+    def test_missing_file(self, tmp_path):
+        result = handle_get_decisions(tmp_path)
+        assert "File not found" in result["decisions"]
+
+
+class TestHandleGetCorrections:
+    def test_reads_corrections(self, mem_dir):
+        result = handle_get_corrections(mem_dir)
+        assert "was wrong" in result["corrections"]
+        assert result["_state"] == "correcting"
+
+
+class TestHandleGetUserModel:
+    def test_reads_user_model(self, mem_dir):
+        result = handle_get_user_model(mem_dir)
+        assert "simple explanations" in result["user_model"]
+        assert result["_state"] == "philosophical"
+
+
+class TestHandleGetPatterns:
+    def test_reads_patterns(self, mem_dir):
+        result = handle_get_patterns(mem_dir)
+        assert "converges" in result["patterns"]
+        assert result["_state"] == "philosophical"
+
+
+class TestHandleGetConversations:
+    def test_reads_conversations(self, mem_dir):
+        result = handle_get_conversations(mem_dir)
+        assert "architecture" in result["conversations"]
+        assert result["_state"] == "reviewing"
+
+
+class TestHandleGetMeta:
+    def test_reads_meta(self, mem_dir):
+        result = handle_get_meta(mem_dir)
+        assert "initial system" in result["meta"]
+        assert result["_state"] == "idle"
+
+
+class TestHandleFullRefresh:
+    def test_loads_all_files(self, mem_dir):
+        result = handle_full_refresh(mem_dir)
+        assert "test user" in result["core"]
+        assert "architecture" in result["recent_conversations"]
+        assert "simple explanations" in result["user_model"]
+        assert "sigma-mem" in result["projects"]
+        assert result["_state"] == "returning"
+
+    def test_missing_files_returns_error_strings(self, tmp_path):
+        result = handle_full_refresh(tmp_path)
+        assert "File not found" in result["core"]
+        assert result["_state"] == "returning"
+
+
+class TestHandleVerifyBeliefs:
+    def test_extracts_beliefs(self, mem_dir):
+        result = handle_verify_beliefs(mem_dir)
+        assert len(result["confirmed_beliefs"]) >= 1
+        assert len(result["tentative_beliefs"]) >= 1
+        assert any("confirmed belief" in b for b in result["confirmed_beliefs"])
+        assert any("tentative guess" in b for b in result["tentative_beliefs"])
+        assert result["_state"] == "returning"
+
+    def test_empty_memory(self, tmp_path):
+        (tmp_path / "MEMORY.md").write_text("just some text\n")
+        result = handle_verify_beliefs(tmp_path)
+        assert result["confirmed_beliefs"] == []
+        assert result["tentative_beliefs"] == []
+
+
+class TestHandleLogCorrection:
+    def test_logs_formatted_entry(self, mem_dir):
+        result = handle_log_correction("said X", "should be Y", mem_dir)
+        assert result["stored"]
+        content = (mem_dir / "corrections.md").read_text()
+        assert "said X" in content
+        assert "should be Y" in content
+
+
+class TestHandleLogDecision:
+    def test_logs_with_rationale(self, mem_dir):
+        result = handle_log_decision("use-redis", "faster caching", "", mem_dir)
+        assert result["stored"]
+        content = (mem_dir / "decisions.md").read_text()
+        assert "use-redis" in content
+        assert "faster caching" in content
+
+    def test_logs_with_alternatives(self, mem_dir):
+        result = handle_log_decision("use-redis", "fast", "memcached,local", mem_dir)
+        content = (mem_dir / "decisions.md").read_text()
+        assert "alt: memcached,local" in content
+
+
+class TestHandleLogFailure:
+    def test_logs_failure(self, mem_dir):
+        result = handle_log_failure("tried caching", "too complex", mem_dir)
+        assert result["stored"]
+        content = (mem_dir / "failures.md").read_text()
+        assert "tried caching" in content
+        assert "too complex" in content

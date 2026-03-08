@@ -79,6 +79,11 @@ class TestVerifyFileIntegrity:
         f.write_text("U[a, b|5|26.3]\n")
         report = verify_file_integrity(f)
         assert len(report["warnings"]) == 1
+        warning = report["warnings"][0]
+        assert "mismatch" in warning["message"].lower()
+        assert warning["may_be_conceptual"] is True
+        assert warning["expected"] == 5
+        assert warning["actual"] == 2
 
     def test_missing_file(self, tmp_path):
         report = verify_file_integrity(tmp_path / "nope.md")

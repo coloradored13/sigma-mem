@@ -214,6 +214,7 @@ def build_machine(
             "by": "string",
             "context": "string",
             "team_name": "string",
+            "weight": "string",
         },
         required=["decision", "by", "team_name"],
     )
@@ -316,7 +317,7 @@ def build_machine(
         return handle_wake_check(task, team_name, teams_dir)
 
     @mem.on_action("store_team_decision")
-    def _store_team_decision(decision="", by="", context="", team_name=""):
-        return handle_store_team_decision(decision, by, context, team_name, teams_dir)
+    def _store_team_decision(decision="", by="", context="", team_name="", weight="primary"):
+        return handle_store_team_decision(decision, by, context, team_name, teams_dir, weight)
 
     return mem

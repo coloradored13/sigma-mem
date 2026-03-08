@@ -9,6 +9,7 @@ from sigma_mem.handlers import (
     _detect_state,
     _detect_team_from_context,
     _get_team_names,
+    _validate_team_name,
     handle_get_agent_memory,
     handle_get_roster,
     handle_get_team_decisions,
@@ -143,6 +144,23 @@ class TestStoreTeamDecision:
         result = handle_store_team_decision("x", "y", "", "nonexistent", team_dir)
         assert "error" in result
 
+    def test_custom_weight(self, team_dir):
+        result = handle_store_team_decision(
+            "use-redis", "ux-researcher", "dissenting view",
+            "test-team", team_dir, weight="dissent",
+        )
+        assert result["stored"] == "use-redis"
+        content = (team_dir / "test-team" / "shared" / "decisions.md").read_text()
+        assert "|weight:dissent" in content
+
+    def test_advisory_weight(self, team_dir):
+        result = handle_store_team_decision(
+            "consider-caching", "product-strategist", "",
+            "test-team", team_dir, weight="advisory",
+        )
+        content = (team_dir / "test-team" / "shared" / "decisions.md").read_text()
+        assert "|weight:advisory" in content
+
 
 class TestDetectAgentIdentity:
     def test_im_pattern(self, team_dir):
@@ -217,3 +235,64 @@ class TestRecallWithTeam:
         (mem_dir / "MEMORY.md").write_text("U[test|1|26.3]\n")
         result = handle_recall("just working on code", mem_dir, team_dir)
         assert "detected_team" not in result
+
+
+class TestValidateTeamName:
+    def test_valid_name(self, team_dir):
+        result = _validate_team_name(team_dir, "test-team")
+        assert result is not None
+        assert result.name == "test-team"
+
+    def test_traversal_blocked(self, team_dir):
+        assert _validate_team_name(team_dir, "../../etc") is None
+
+    def test_absolute_path_in_name(self, team_dir):
+        assert _validate_team_name(team_dir, "/etc/passwd") is None
+
+
+class TestStoreTeamDecisionTraversal:
+    def test_traversal_blocked_in_team_name(self, team_dir):
+        result = handle_store_team_decision("x", "y", "", "../../etc", team_dir)
+        assert "error" in result
+
+    def test_valid_team_still_works(self, team_dir):
+        result = handle_store_team_decision(
+            "test-decision", "tester", "", "test-team", team_dir
+        )
+        assert result["stored"] == "test-decision"
+
+
+class TestDetectAgentIdentityNoFalsePositive:
+    def test_third_person_reference_not_matched(self, team_dir):
+        result = _detect_agent_identity(
+            "reviewing tech-architect's code for issues", "test-team", team_dir
+        )
+        assert result is None
+
+    def test_discussing_agent_not_matched(self, team_dir):
+        result = _detect_agent_identity(
+            "what did tech-architect find in the last review?", "test-team", team_dir
+        )
+        assert result is None
+
+    def test_traversal_blocked(self, team_dir):
+        result = _detect_agent_identity(
+            "I'm tech-architect", "../../etc", team_dir
+        )
+        assert result is None
+
+
+class TestWakeCheckFullPhrase:
+    def test_single_word_doesnt_match_phrase_trigger(self, team_dir):
+        result = handle_wake_check("let me review the logs", "test-team", team_dir)
+        assert result["wake_count"] == 0
+
+    def test_full_phrase_still_matches(self, team_dir):
+        result = handle_wake_check("need a code review of the module", "test-team", team_dir)
+        agents = [r["agent"] for r in result["wake"]]
+        assert "tech-architect" in agents
+
+    def test_exact_trigger_matches(self, team_dir):
+        result = handle_wake_check("system design discussion", "test-team", team_dir)
+        agents = [r["agent"] for r in result["wake"]]
+        assert "tech-architect" in agents
