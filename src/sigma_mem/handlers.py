@@ -600,9 +600,11 @@ def handle_update_belief(
 
 def _read_team_file(teams_dir: Path, team_name: str, relative_path: str) -> str | None:
     """Safely read a file from a team directory."""
-    team_dir = teams_dir / team_name
-    filepath = (team_dir / relative_path).resolve()
-    if not filepath.is_relative_to(team_dir.resolve()):
+    team_base = _validate_team_name(teams_dir, team_name)
+    if team_base is None:
+        return None
+    filepath = (team_base / relative_path).resolve()
+    if not filepath.is_relative_to(team_base.resolve()):
         return None
     if not filepath.exists():
         return None

@@ -92,6 +92,10 @@ class TestGetRoster:
         result = handle_get_roster("nonexistent", team_dir)
         assert "error" in result
 
+    def test_traversal_blocked_in_read_path(self, team_dir):
+        result = handle_get_roster("../../etc", team_dir)
+        assert "error" in result
+
 
 class TestGetTeamDecisions:
     def test_reads_decisions(self, team_dir):
