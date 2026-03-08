@@ -43,10 +43,10 @@ Each state unlocks different actions. The gateway detects context using weighted
 ## Installation
 
 ```bash
-pip install sigma-mem
+pip install git+https://github.com/coloradored13/sigma-mem.git
 ```
 
-Requires [hateoas-agent](https://github.com/bjgilbert/hateoas-agent) >= 0.1.0.
+Requires [hateoas-agent](https://github.com/coloradored13/hateoas-agent) >= 0.1.0.
 
 ## Usage
 
@@ -95,14 +95,16 @@ sigma-mem --memory-dir /path/to/memory --teams-dir /path/to/teams
 
 ## Architecture
 
-Four modules, ~550 lines:
+Five modules, ~1,382 lines:
 
 - `machine.py` — Declarative HATEOAS state machine (states, actions, handler bindings)
 - `handlers.py` — All read/write operations for personal and team memory
 - `integrity.py` — Checksums, confidence detection, anti-memory verification
 - `server.py` — MCP server entry point
 
-Built on [hateoas-agent](https://github.com/bjgilbert/hateoas-agent) for state machine and MCP serving.
+165 tests across 5 test modules (~1,463 lines).
+
+Built on [hateoas-agent](https://github.com/coloradored13/hateoas-agent) for state machine and MCP serving.
 
 ## License
 
