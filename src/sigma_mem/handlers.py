@@ -102,10 +102,19 @@ def handle_recall(
                     team_name, agent_name, teams_dir
                 )
             else:
-                # Lead/user: just surface the roster
+                # Lead/user: surface roster + workspace status + inbox summary
                 roster = _read_team_file(teams_dir, team_name, "shared/roster.md")
                 if roster:
                     result["team_roster"] = roster
+
+                workspace = _get_workspace_summary(teams_dir, team_name)
+                if workspace:
+                    result["team_workspace"] = workspace
+
+                # Summarize inbox status for all agents
+                inbox_summary = _get_team_inbox_summary(teams_dir, team_name)
+                if inbox_summary:
+                    result["team_inbox_summary"] = inbox_summary
         else:
             result["available_teams"] = _get_team_names(teams_dir)
 
@@ -256,12 +265,97 @@ def _get_project_names(memory_dir: Path) -> list[str]:
     return names
 
 
+def _parse_agent_roster_entry(
+    roster_content: str, agent_name: str
+) -> dict[str, str]:
+    """Extract an agent's domain and wake-for from roster content."""
+    for line in roster_content.splitlines():
+        if not line.strip().startswith(agent_name):
+            continue
+        parts = line.split("|")
+        entry: dict[str, str] = {}
+        for part in parts:
+            part = part.strip()
+            if part.startswith("domain:"):
+                entry["domain"] = part.split("domain:")[1].strip()
+            elif part.startswith("wake-for:"):
+                entry["wake_for"] = part.split("wake-for:")[1].strip()
+        if entry:
+            return entry
+    return {}
+
+
+def _count_inbox_unread(teams_dir: Path, team_name: str, agent_name: str) -> int:
+    """Count unread messages in an agent's inbox."""
+    content = _read_team_file(teams_dir, team_name, f"inboxes/{agent_name}.md")
+    if not content:
+        return 0
+    in_unread = False
+    count = 0
+    for line in content.splitlines():
+        stripped = line.strip()
+        if stripped.lower().startswith("## unread"):
+            in_unread = True
+            continue
+        if in_unread and stripped.startswith("##"):
+            break
+        if in_unread and stripped and not stripped.startswith("#") and not stripped.startswith("---"):
+            count += 1
+    return count
+
+
+def _get_workspace_summary(teams_dir: Path, team_name: str) -> str | None:
+    """Extract workspace status and task headline."""
+    content = _read_team_file(teams_dir, team_name, "shared/workspace.md")
+    if not content:
+        return None
+    status = ""
+    task = ""
+    for line in content.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("## status:"):
+            status = stripped.split("## status:")[1].strip()
+        elif stripped.startswith("# workspace"):
+            # Title line often has task name: "# workspace — task-name"
+            if "—" in stripped:
+                task = stripped.split("—", 1)[1].strip()
+            elif "-" in stripped:
+                task = stripped.split("-", 1)[1].strip()
+    if status or task:
+        parts = []
+        if task:
+            parts.append(task)
+        if status:
+            parts.append(f"status: {status}")
+        return " | ".join(parts)
+    return None
+
+
+def _get_team_inbox_summary(
+    teams_dir: Path, team_name: str
+) -> dict[str, int] | None:
+    """Get unread counts for all agents on a team."""
+    team_base = _validate_team_name(teams_dir, team_name)
+    if team_base is None:
+        return None
+    inboxes_dir = team_base / "inboxes"
+    if not inboxes_dir.exists():
+        return None
+    summary = {}
+    for inbox_file in sorted(inboxes_dir.glob("*.md")):
+        agent_name = inbox_file.stem
+        unread = _count_inbox_unread(teams_dir, team_name, agent_name)
+        summary[agent_name] = unread
+    return summary if summary else None
+
+
 def _build_agent_boot(
     team_name: str, agent_name: str, teams_dir: Path
 ) -> dict[str, Any]:
     """Build a complete boot package for an agent — everything they need in one call.
 
     Returns personal memory, team decisions, team patterns, roster,
+    agent domain/wake-for, inbox unread count, workspace summary,
     and a list of teammate names for cross-reference.
     """
     boot: dict[str, Any] = {"team": team_name, "agent": agent_name}
@@ -288,6 +382,19 @@ def _build_agent_boot(
     if roster:
         mem, _ = _split_content_and_actions(roster)
         boot["roster"] = mem
+        # Extract this agent's domain and wake-for from roster
+        entry = _parse_agent_roster_entry(mem, agent_name)
+        if entry:
+            boot["agent_domain"] = entry
+
+    # Inbox unread count
+    unread = _count_inbox_unread(teams_dir, team_name, agent_name)
+    boot["inbox_unread"] = unread
+
+    # Workspace summary
+    workspace = _get_workspace_summary(teams_dir, team_name)
+    if workspace:
+        boot["workspace"] = workspace
 
     # List teammates for cross-reference awareness
     agents_dir = teams_dir / team_name / "agents"
@@ -617,6 +724,67 @@ def handle_store_team_decision(
     return {"stored": decision, "by": by, "team": team_name, "_state": "team_work"}
 
 
+def handle_store_agent_memory(
+    entry: str, agent_name: str, team_name: str = "",
+    teams_dir: Path = DEFAULT_TEAMS_DIR,
+) -> dict[str, Any]:
+    """Append an entry to an agent's personal memory file."""
+    if _has_arrow_prefix(entry):
+        return {
+            "error": "Entry contains →-prefixed lines which are reserved for navigation. "
+            "Use |→ within a line instead of starting a line with →.",
+            "_state": "team_work",
+        }
+    team_base = _validate_team_name(teams_dir, team_name)
+    if team_base is None:
+        return {"error": f"Invalid team name: {team_name}", "_state": "team_work"}
+    filepath = team_base / "agents" / agent_name / "memory.md"
+    if not filepath.resolve().is_relative_to(team_base.resolve()):
+        return {"error": f"Invalid agent name: {agent_name}", "_state": "team_work"}
+    if not filepath.exists():
+        return {
+            "error": f"No memory file for agent '{agent_name}' on team '{team_name}'",
+            "_state": "team_work",
+        }
+
+    content = filepath.read_text()
+    mem_content, actions = _split_content_and_actions(content)
+
+    new_content = mem_content + f"\n{entry}\n"
+    if actions:
+        new_content += "\n" + "\n".join(actions) + "\n"
+
+    filepath.write_text(new_content)
+    return {"stored": entry, "agent": agent_name, "team": team_name, "_state": "team_work"}
+
+
+def handle_store_team_pattern(
+    pattern: str, agents: str = "", team_name: str = "",
+    teams_dir: Path = DEFAULT_TEAMS_DIR,
+) -> dict[str, Any]:
+    """Store a cross-agent pattern in team shared memory."""
+    team_base = _validate_team_name(teams_dir, team_name)
+    if team_base is None:
+        return {"error": f"Invalid team name: {team_name}", "_state": "team_work"}
+    filepath = team_base / "shared" / "patterns.md"
+    if not filepath.exists():
+        return {"error": f"Patterns file not found for team: {team_name}", "_state": "team_work"}
+
+    content = filepath.read_text()
+    mem_content, actions = _split_content_and_actions(content)
+
+    entry = f"\n{pattern}"
+    if agents:
+        entry += f" |agents: {agents}"
+
+    new_content = mem_content + entry + "\n"
+    if actions:
+        new_content += "\n" + "\n".join(actions) + "\n"
+
+    filepath.write_text(new_content)
+    return {"stored": pattern, "team": team_name, "_state": "team_work"}
+
+
 def handle_search_memory(
     query: str, memory_dir: Path = DEFAULT_MEMORY_DIR
 ) -> dict[str, Any]:
@@ -635,4 +803,54 @@ def handle_search_memory(
         "matches": results,
         "anti_memory_warnings": warnings,
         "_state": "idle",
+    }
+
+
+def handle_search_team_memory(
+    query: str, team_name: str, teams_dir: Path = DEFAULT_TEAMS_DIR
+) -> dict[str, Any]:
+    """Search across all team memory files — shared and agent personal."""
+    team_base = _validate_team_name(teams_dir, team_name)
+    if team_base is None:
+        return {"error": f"Invalid team name: {team_name}", "_state": "team_work"}
+
+    q = query.lower()
+    results: dict[str, list[str]] = {}
+
+    # Search shared files
+    shared_dir = team_base / "shared"
+    if shared_dir.exists():
+        for md_file in sorted(shared_dir.glob("*.md")):
+            content = md_file.read_text()
+            matches = [l.strip() for l in content.splitlines() if q in l.lower()]
+            if matches:
+                results[f"shared/{md_file.name}"] = matches
+
+    # Search agent personal memory files
+    agents_dir = team_base / "agents"
+    if agents_dir.exists():
+        for agent_dir in sorted(agents_dir.iterdir()):
+            if not agent_dir.is_dir():
+                continue
+            mem_file = agent_dir / "memory.md"
+            if mem_file.exists():
+                content = mem_file.read_text()
+                matches = [l.strip() for l in content.splitlines() if q in l.lower()]
+                if matches:
+                    results[f"agents/{agent_dir.name}/memory.md"] = matches
+
+    # Search inboxes
+    inboxes_dir = team_base / "inboxes"
+    if inboxes_dir.exists():
+        for inbox_file in sorted(inboxes_dir.glob("*.md")):
+            content = inbox_file.read_text()
+            matches = [l.strip() for l in content.splitlines() if q in l.lower()]
+            if matches:
+                results[f"inboxes/{inbox_file.name}"] = matches
+
+    return {
+        "query": query,
+        "team": team_name,
+        "matches": results,
+        "_state": "team_work",
     }

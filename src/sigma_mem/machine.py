@@ -28,8 +28,11 @@ from .handlers import (
     handle_log_failure,
     handle_recall,
     handle_search_memory,
+    handle_search_team_memory,
+    handle_store_agent_memory,
     handle_store_memory,
     handle_store_team_decision,
+    handle_store_team_pattern,
     handle_update_belief,
     handle_verify_beliefs,
     handle_wake_check,
@@ -89,13 +92,13 @@ def build_machine(
     mem.action(
         "get_project",
         description="Load state for a specific project",
-        from_states=["project_work", "idle", "debugging"],
+        from_states=["project_work", "idle", "debugging", "team_work"],
         params={"name": "string"},
     )
     mem.action(
         "get_decisions",
         description="Load past decisions to avoid revisiting settled choices",
-        from_states=["project_work", "idle", "reviewing"],
+        from_states=["project_work", "idle", "reviewing", "team_work"],
     )
     mem.action(
         "log_decision",
@@ -107,7 +110,7 @@ def build_machine(
     mem.action(
         "get_failures",
         description="Load past failures to avoid repeating them",
-        from_states=["project_work", "debugging"],
+        from_states=["project_work", "debugging", "team_work"],
     )
     mem.action(
         "log_failure",
@@ -147,7 +150,7 @@ def build_machine(
     mem.action(
         "get_patterns",
         description="Load cross-cutting patterns observed across conversations",
-        from_states=["philosophical", "reviewing"],
+        from_states=["philosophical", "reviewing", "team_work"],
     )
 
     # --- Reviewing past work ---
@@ -194,7 +197,7 @@ def build_machine(
     mem.action(
         "get_agent_memory",
         description="Load a specific agent's personal memory from the team",
-        from_states=["team_work"],
+        from_states=["team_work", "idle"],
         params={"team_name": "string", "agent_name": "string"},
         required=["team_name", "agent_name"],
     )
@@ -217,6 +220,27 @@ def build_machine(
             "weight": "string",
         },
         required=["decision", "by", "team_name"],
+    )
+    mem.action(
+        "search_team_memory",
+        description="Search across all team memory files — shared, agent personal, and inboxes",
+        from_states=["team_work", "idle"],
+        params={"query": "string", "team_name": "string"},
+        required=["query", "team_name"],
+    )
+    mem.action(
+        "store_agent_memory",
+        description="Append an entry to an agent's personal memory file on a team",
+        from_states=["team_work"],
+        params={"entry": "string", "agent_name": "string", "team_name": "string"},
+        required=["entry", "agent_name", "team_name"],
+    )
+    mem.action(
+        "store_team_pattern",
+        description="Record a cross-agent pattern in team shared memory",
+        from_states=["team_work"],
+        params={"pattern": "string", "agents": "string", "team_name": "string"},
+        required=["pattern", "team_name"],
     )
 
     # --- Register handlers ---
@@ -319,5 +343,17 @@ def build_machine(
     @mem.on_action("store_team_decision")
     def _store_team_decision(decision="", by="", context="", team_name="", weight="primary"):
         return handle_store_team_decision(decision, by, context, team_name, teams_dir, weight)
+
+    @mem.on_action("search_team_memory")
+    def _search_team(query="", team_name=""):
+        return handle_search_team_memory(query, team_name, teams_dir)
+
+    @mem.on_action("store_agent_memory")
+    def _store_agent(entry="", agent_name="", team_name=""):
+        return handle_store_agent_memory(entry, agent_name, team_name, teams_dir)
+
+    @mem.on_action("store_team_pattern")
+    def _store_pattern(pattern="", agents="", team_name=""):
+        return handle_store_team_pattern(pattern, agents, team_name, teams_dir)
 
     return mem
