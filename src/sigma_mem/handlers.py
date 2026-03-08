@@ -78,6 +78,10 @@ def handle_recall(
     result: dict[str, Any] = {
         "core_memory": core_content,
         "detected_context": state,
+        "protocol": (
+            "notation: pipe-separated compressed fields, not plain English sentences. "
+            "Example: 'topic|detail1|detail2|why: reason' — see rosetta.md via recall for full spec."
+        ),
         "_state": state,
     }
 
@@ -523,6 +527,21 @@ def _has_arrow_prefix(entry: str) -> bool:
     return any(line.strip().startswith("→") for line in entry.splitlines())
 
 
+def _check_notation(entry: str) -> str | None:
+    """Check if entry follows pipe-separated compressed notation.
+
+    Returns a warning string if the entry looks like plain English, None if ok.
+    """
+    words = entry.split()
+    has_pipes = "|" in entry
+    if len(words) >= 10 and not has_pipes:
+        return (
+            "Entry looks like plain English. Use pipe-separated compressed notation: "
+            "'topic|detail|why: reason' — see rosetta.md for spec."
+        )
+    return None
+
+
 def handle_store_memory(
     entry: str, file: str = "conv.md", memory_dir: Path = DEFAULT_MEMORY_DIR
 ) -> dict[str, Any]:
@@ -548,7 +567,11 @@ def handle_store_memory(
         new_content += "\n" + "\n".join(actions) + "\n"
 
     filepath.write_text(new_content)
-    return {"stored": entry, "file": file, "_state": "idle"}
+    result: dict[str, Any] = {"stored": entry, "file": file, "_state": "idle"}
+    notation_warning = _check_notation(entry)
+    if notation_warning:
+        result["format_warning"] = notation_warning
+    return result
 
 
 def handle_log_correction(

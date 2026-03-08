@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 
 from sigma_mem.handlers import (
+    _check_notation,
     _detect_state,
     _validate_path,
     handle_full_refresh,
@@ -78,6 +79,13 @@ class TestHandleRecall:
         assert "core_memory" in result
         assert "_state" in result
 
+    def test_returns_protocol_field(self, tmp_path):
+        mem = tmp_path / "MEMORY.md"
+        mem.write_text("U[test|1|26.3]\n")
+        result = handle_recall("hello", tmp_path)
+        assert "protocol" in result
+        assert "pipe-separated" in result["protocol"]
+
     def test_anti_memory_warnings(self, tmp_path):
         mem = tmp_path / "MEMORY.md"
         mem.write_text("U[test|1|26.3]\n¬[developer(not a dev)]")
@@ -131,6 +139,39 @@ class TestHandleSearchMemory:
         f.write_text("nothing relevant here\n")
         result = handle_search_memory("zzzzz", tmp_path)
         assert len(result["matches"]) == 0
+
+
+class TestNotationCheck:
+    def test_compressed_entry_no_warning(self):
+        assert _check_notation("topic|detail|why: reason") is None
+
+    def test_short_plain_english_no_warning(self):
+        assert _check_notation("quick note") is None
+
+    def test_long_plain_english_warns(self):
+        entry = "This is a plain English sentence that does not use any pipe separators at all"
+        warning = _check_notation(entry)
+        assert warning is not None
+        assert "pipe-separated" in warning
+
+    def test_long_entry_with_pipes_no_warning(self):
+        entry = "topic|this has many words but uses pipe separators so it should be fine"
+        assert _check_notation(entry) is None
+
+    def test_store_memory_includes_format_warning(self, tmp_path):
+        f = tmp_path / "conv.md"
+        f.write_text("existing\n")
+        entry = "This is a plain English sentence without any compressed notation or pipes"
+        result = handle_store_memory(entry, "conv.md", tmp_path)
+        assert "stored" in result
+        assert "format_warning" in result
+
+    def test_store_memory_no_warning_for_compressed(self, tmp_path):
+        f = tmp_path / "conv.md"
+        f.write_text("existing\n")
+        result = handle_store_memory("topic|detail|why: reason", "conv.md", tmp_path)
+        assert "stored" in result
+        assert "format_warning" not in result
 
 
 class TestArrowPrefixProtection:
