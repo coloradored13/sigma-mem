@@ -269,6 +269,12 @@ class TestStoreTeamDecisionTraversal:
         assert result["stored"] == "test-decision"
 
 
+class TestReadPathTraversalBlocked:
+    def test_traversal_blocked_in_team_name_read(self, team_dir):
+        result = handle_get_roster("../../etc", team_dir)
+        assert "error" in result
+
+
 class TestDetectAgentIdentityNoFalsePositive:
     def test_third_person_reference_not_matched(self, team_dir):
         result = _detect_agent_identity(
