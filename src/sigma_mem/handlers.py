@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from datetime import date
 from pathlib import Path
 from typing import Any
@@ -661,16 +662,83 @@ def handle_get_agent_memory(
     }
 
 
+def _parse_ymd_date(date_str: str) -> date | None:
+    """Parse a YY.M.D date string into a date object. Returns None on failure."""
+    try:
+        parts = date_str.strip().split(".")
+        if len(parts) != 3:
+            return None
+        year = 2000 + int(parts[0])
+        month = int(parts[1])
+        day = int(parts[2])
+        return date(year, month, day)
+    except (ValueError, IndexError):
+        return None
+
+
+def _check_agent_research(
+    teams_dir: Path, team_name: str, agent_name: str, today: date | None = None,
+) -> dict[str, Any]:
+    """Check research freshness for an agent's memory file.
+
+    Returns dict with research_status and research_refreshed.
+    Status values: "current" (refreshed within 30 days), "stale" (older than 30 days), "missing".
+    """
+    if today is None:
+        today = date.today()
+
+    content = _read_team_file(teams_dir, team_name, f"agents/{agent_name}/memory.md")
+    if content is None:
+        return {"research_status": "missing", "research_refreshed": None}
+
+    # Look for ## research section
+    in_research = False
+    refreshed_date = None
+    for line in content.splitlines():
+        stripped = line.strip().lower()
+        if stripped.startswith("## research"):
+            in_research = True
+            continue
+        if in_research and stripped.startswith("##"):
+            break
+        if in_research and "refreshed:" in stripped:
+            # Extract date after "refreshed:"
+            match = re.search(r"refreshed:\s*(\d+\.\d+\.\d+)", stripped)
+            if match:
+                refreshed_date = match.group(1)
+                break
+
+    if not in_research:
+        return {"research_status": "missing", "research_refreshed": None}
+
+    if refreshed_date is None:
+        # Has ## research section but no refreshed date — treat as stale
+        return {"research_status": "stale", "research_refreshed": None}
+
+    parsed = _parse_ymd_date(refreshed_date)
+    if parsed is None:
+        return {"research_status": "stale", "research_refreshed": refreshed_date}
+
+    delta = (today - parsed).days
+    status = "current" if delta <= 30 else "stale"
+    return {"research_status": status, "research_refreshed": refreshed_date}
+
+
 def handle_wake_check(
     task: str, team_name: str, teams_dir: Path = DEFAULT_TEAMS_DIR
 ) -> dict[str, Any]:
-    """Check which agents should be woken for a given task."""
+    """Check which agents should be woken for a given task.
+
+    Also checks research freshness for each woken agent and includes
+    warnings for agents missing or having stale domain research.
+    """
     content = _read_team_file(teams_dir, team_name, "shared/roster.md")
     if content is None:
         return {"error": f"Roster not found for team: {team_name}", "_state": "team_work"}
 
     task_lower = task.lower()
     recommendations = []
+    research_warnings = []
     for line in content.splitlines():
         if "|wake-for:" not in line:
             continue
@@ -685,13 +753,115 @@ def handle_wake_check(
         triggers = [t.strip() for t in wake_for.split(",")]
         matched = [t for t in triggers if t in task_lower]
         if matched:
-            recommendations.append({"agent": agent_name, "matched": matched})
+            research = _check_agent_research(teams_dir, team_name, agent_name)
+            rec = {
+                "agent": agent_name,
+                "matched": matched,
+                "research_status": research["research_status"],
+                "research_refreshed": research["research_refreshed"],
+            }
+            recommendations.append(rec)
+            if research["research_status"] == "missing":
+                research_warnings.append(
+                    f"{agent_name} has no domain research. Run a research round before review."
+                )
+            elif research["research_status"] == "stale":
+                research_warnings.append(
+                    f"{agent_name} has stale domain research. Consider refreshing before review."
+                )
 
-    return {
+    result: dict[str, Any] = {
         "team": team_name,
         "task": task,
         "wake": recommendations,
         "wake_count": len(recommendations),
+        "_state": "team_work",
+    }
+    if research_warnings:
+        result["research_warnings"] = research_warnings
+    return result
+
+
+def handle_validate_system(
+    team_name: str,
+    teams_dir: Path = DEFAULT_TEAMS_DIR,
+    agents_dir: Path | None = None,
+) -> dict[str, Any]:
+    """Validate that all agents in a team have required files and research.
+
+    Checks for each agent in the roster:
+    - Definition file at agents_dir/{name}.md (defaults to ~/.claude/agents/)
+    - Memory file at teams/{team}/agents/{name}/memory.md
+    - Inbox file at teams/{team}/inboxes/{name}.md
+    - ## research section in their memory file
+
+    Returns a structured report of present vs missing items.
+    """
+    if agents_dir is None:
+        agents_dir = Path.home() / ".claude" / "agents"
+
+    content = _read_team_file(teams_dir, team_name, "shared/roster.md")
+    if content is None:
+        return {"error": f"Roster not found for team: {team_name}", "_state": "team_work"}
+
+    # Extract agent names from roster
+    agent_names = []
+    for line in content.splitlines():
+        if "|wake-for:" not in line and "|domain:" not in line:
+            continue
+        parts = line.split("|")
+        name = parts[0].strip()
+        if name:
+            agent_names.append(name)
+
+    report: list[dict[str, Any]] = []
+    issues: list[str] = []
+
+    for name in agent_names:
+        agent_report: dict[str, Any] = {"agent": name}
+
+        # Check definition file
+        def_file = agents_dir / f"{name}.md"
+        agent_report["definition"] = def_file.exists()
+        if not def_file.exists():
+            issues.append(f"{name}: missing definition file ({def_file})")
+
+        # Check memory file
+        team_base = _validate_team_name(teams_dir, team_name)
+        mem_file = team_base / "agents" / name / "memory.md" if team_base else None
+        has_memory = mem_file is not None and mem_file.exists()
+        agent_report["memory"] = has_memory
+        if not has_memory:
+            issues.append(f"{name}: missing memory file")
+
+        # Check inbox file
+        inbox_file = team_base / "inboxes" / f"{name}.md" if team_base else None
+        has_inbox = inbox_file is not None and inbox_file.exists()
+        agent_report["inbox"] = has_inbox
+        if not has_inbox:
+            issues.append(f"{name}: missing inbox file")
+
+        # Check research section in memory
+        if has_memory:
+            research = _check_agent_research(teams_dir, team_name, name)
+            agent_report["research_status"] = research["research_status"]
+            agent_report["research_refreshed"] = research["research_refreshed"]
+            if research["research_status"] == "missing":
+                issues.append(f"{name}: no ## research section in memory")
+            elif research["research_status"] == "stale":
+                issues.append(f"{name}: research is stale")
+        else:
+            agent_report["research_status"] = "missing"
+            agent_report["research_refreshed"] = None
+
+        report.append(agent_report)
+
+    return {
+        "team": team_name,
+        "agents": report,
+        "issues": issues,
+        "issue_count": len(issues),
+        "valid": len(issues) == 0,
         "_state": "team_work",
     }
 

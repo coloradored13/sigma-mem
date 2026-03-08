@@ -1,10 +1,12 @@
 """Tests for team memory handlers — roster, decisions, agent memory, wake check."""
 
+from datetime import date, timedelta
 from pathlib import Path
 
 import pytest
 
 from sigma_mem.handlers import (
+    _check_agent_research,
     _detect_agent_identity,
     _detect_state,
     _detect_team_from_context,
@@ -16,6 +18,7 @@ from sigma_mem.handlers import (
     handle_get_team_patterns,
     handle_recall,
     handle_store_team_decision,
+    handle_validate_system,
     handle_wake_check,
 )
 
@@ -296,3 +299,193 @@ class TestWakeCheckFullPhrase:
         result = handle_wake_check("system design discussion", "test-team", team_dir)
         agents = [r["agent"] for r in result["wake"]]
         assert "tech-architect" in agents
+
+
+@pytest.fixture
+def team_dir_with_research(tmp_path):
+    """Create a team directory with research sections and inboxes."""
+    team = tmp_path / "test-team"
+    shared = team / "shared"
+    shared.mkdir(parents=True)
+    inboxes = team / "inboxes"
+    inboxes.mkdir(parents=True)
+
+    # Agent with current research
+    arch_dir = team / "agents" / "tech-architect"
+    arch_dir.mkdir(parents=True)
+
+    today = date.today()
+    today_ymd = f"{today.year % 100}.{today.month}.{today.day}"
+    (arch_dir / "memory.md").write_text(
+        "# tech-architect memory\n\n## past findings\nreview-1: found path traversal\n\n"
+        f"## research\nrefreshed: {today_ymd}\n- security patterns in Python\n- OWASP top 10\n"
+    )
+    (inboxes / "tech-architect.md").write_text("## unread\n\n## read\n")
+
+    # Agent with stale research (60 days old)
+    ux_dir = team / "agents" / "ux-researcher"
+    ux_dir.mkdir(parents=True)
+
+    stale_date = today - timedelta(days=60)
+    stale_ymd = f"{stale_date.year % 100}.{stale_date.month}.{stale_date.day}"
+    (ux_dir / "memory.md").write_text(
+        "# ux-researcher memory\n\n## past findings\nreview-1: accessibility issue\n\n"
+        f"## research\nrefreshed: {stale_ymd}\n- usability heuristics\n"
+    )
+    (inboxes / "ux-researcher.md").write_text("## unread\n\n## read\n")
+
+    # Agent with no research section at all
+    qa_dir = team / "agents" / "code-quality-analyst"
+    qa_dir.mkdir(parents=True)
+    (qa_dir / "memory.md").write_text(
+        "# code-quality-analyst memory\n\n## past findings\nreview-1: lint issues\n"
+    )
+    (inboxes / "code-quality-analyst.md").write_text("## unread\n\n## read\n")
+
+    (shared / "roster.md").write_text(
+        "tech-architect |domain: architecture,security |wake-for: code review,system design\n"
+        "ux-researcher |domain: usability |wake-for: user-facing changes,code review\n"
+        "code-quality-analyst |domain: quality |wake-for: code review,refactor\n"
+    )
+    (shared / "decisions.md").write_text("# team decisions\n")
+    (shared / "patterns.md").write_text("# patterns\n")
+
+    return tmp_path
+
+
+class TestWakeCheckResearchStatus:
+    def test_current_research_included(self, team_dir_with_research):
+        result = handle_wake_check("code review", "test-team", team_dir_with_research)
+        arch = next(r for r in result["wake"] if r["agent"] == "tech-architect")
+        assert arch["research_status"] == "current"
+        assert arch["research_refreshed"] is not None
+
+    def test_missing_research_flagged(self, team_dir_with_research):
+        result = handle_wake_check("code review", "test-team", team_dir_with_research)
+        qa = next(r for r in result["wake"] if r["agent"] == "code-quality-analyst")
+        assert qa["research_status"] == "missing"
+        assert qa["research_refreshed"] is None
+        assert any("code-quality-analyst" in w and "no domain research" in w
+                    for w in result["research_warnings"])
+
+    def test_stale_research_flagged(self, team_dir_with_research):
+        result = handle_wake_check("code review", "test-team", team_dir_with_research)
+        ux = next(r for r in result["wake"] if r["agent"] == "ux-researcher")
+        assert ux["research_status"] == "stale"
+        assert ux["research_refreshed"] is not None
+        assert any("ux-researcher" in w and "stale" in w
+                    for w in result["research_warnings"])
+
+    def test_no_warnings_when_all_current(self, team_dir_with_research):
+        """When only agents with current research match, no warnings."""
+        result = handle_wake_check("system design", "test-team", team_dir_with_research)
+        # Only tech-architect matches "system design"
+        assert result["wake_count"] == 1
+        assert result["wake"][0]["research_status"] == "current"
+        assert "research_warnings" not in result
+
+
+class TestValidateSystem:
+    def test_catches_missing_agent_files(self, team_dir_with_research):
+        """Agents without definition files are flagged."""
+        # Create a temporary agents_dir with only one definition
+        agents_def_dir = team_dir_with_research / "agent_defs"
+        agents_def_dir.mkdir()
+        (agents_def_dir / "tech-architect.md").write_text("# tech-architect\n")
+        # ux-researcher and code-quality-analyst have no definition files
+
+        result = handle_validate_system(
+            "test-team", team_dir_with_research, agents_def_dir
+        )
+        assert result["valid"] is False
+        assert result["issue_count"] >= 2
+        # Check specific missing definitions
+        missing_def = [i for i in result["issues"] if "missing definition" in i]
+        assert len(missing_def) == 2
+        agent_names_missing = [i.split(":")[0] for i in missing_def]
+        assert "ux-researcher" in agent_names_missing
+        assert "code-quality-analyst" in agent_names_missing
+
+    def test_catches_missing_research(self, team_dir_with_research):
+        """Agents without ## research section are flagged."""
+        agents_def_dir = team_dir_with_research / "agent_defs"
+        agents_def_dir.mkdir(exist_ok=True)
+        for name in ["tech-architect", "ux-researcher", "code-quality-analyst"]:
+            (agents_def_dir / f"{name}.md").write_text(f"# {name}\n")
+
+        result = handle_validate_system(
+            "test-team", team_dir_with_research, agents_def_dir
+        )
+        # code-quality-analyst has no research
+        research_issues = [i for i in result["issues"] if "research" in i.lower()]
+        agent_names = [i.split(":")[0] for i in research_issues]
+        assert "code-quality-analyst" in agent_names
+
+    def test_catches_missing_memory(self, tmp_path):
+        """Agents in roster but without memory files are flagged."""
+        team = tmp_path / "test-team"
+        shared = team / "shared"
+        shared.mkdir(parents=True)
+        # Create roster referencing an agent that has no agent dir
+        (shared / "roster.md").write_text(
+            "ghost-agent |domain: testing |wake-for: test\n"
+        )
+        agents_def_dir = tmp_path / "agent_defs"
+        agents_def_dir.mkdir()
+        (agents_def_dir / "ghost-agent.md").write_text("# ghost\n")
+
+        result = handle_validate_system("test-team", tmp_path, agents_def_dir)
+        assert result["valid"] is False
+        memory_issues = [i for i in result["issues"] if "missing memory" in i]
+        assert len(memory_issues) == 1
+        assert "ghost-agent" in memory_issues[0]
+
+    def test_catches_missing_inbox(self, tmp_path):
+        """Agents without inbox files are flagged."""
+        team = tmp_path / "test-team"
+        shared = team / "shared"
+        shared.mkdir(parents=True)
+        agent_dir = team / "agents" / "solo-agent"
+        agent_dir.mkdir(parents=True)
+        (agent_dir / "memory.md").write_text(
+            "# solo\n\n## research\nrefreshed: 26.3.1\n- stuff\n"
+        )
+        (shared / "roster.md").write_text(
+            "solo-agent |domain: testing |wake-for: test\n"
+        )
+        agents_def_dir = tmp_path / "agent_defs"
+        agents_def_dir.mkdir()
+        (agents_def_dir / "solo-agent.md").write_text("# solo\n")
+
+        result = handle_validate_system("test-team", tmp_path, agents_def_dir)
+        inbox_issues = [i for i in result["issues"] if "missing inbox" in i]
+        assert len(inbox_issues) == 1
+        assert "solo-agent" in inbox_issues[0]
+
+    def test_valid_system_passes(self, tmp_path):
+        """A fully valid system returns valid=True with no issues."""
+        team = tmp_path / "test-team"
+        shared = team / "shared"
+        shared.mkdir(parents=True)
+        agent_dir = team / "agents" / "complete-agent"
+        agent_dir.mkdir(parents=True)
+        inboxes = team / "inboxes"
+        inboxes.mkdir(parents=True)
+
+        today = date.today()
+        today_ymd = f"{today.year % 100}.{today.month}.{today.day}"
+        (agent_dir / "memory.md").write_text(
+            f"# complete\n\n## research\nrefreshed: {today_ymd}\n- research notes\n"
+        )
+        (inboxes / "complete-agent.md").write_text("## unread\n\n## read\n")
+        (shared / "roster.md").write_text(
+            "complete-agent |domain: testing |wake-for: test\n"
+        )
+        agents_def_dir = tmp_path / "agent_defs"
+        agents_def_dir.mkdir()
+        (agents_def_dir / "complete-agent.md").write_text("# complete\n")
+
+        result = handle_validate_system("test-team", tmp_path, agents_def_dir)
+        assert result["valid"] is True
+        assert result["issue_count"] == 0
+        assert len(result["issues"]) == 0

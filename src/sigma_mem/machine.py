@@ -32,6 +32,7 @@ from .handlers import (
     handle_store_agent_memory,
     handle_store_memory,
     handle_store_team_decision,
+    handle_validate_system,
     handle_store_team_pattern,
     handle_update_belief,
     handle_verify_beliefs,
@@ -209,6 +210,13 @@ def build_machine(
         required=["task", "team_name"],
     )
     mem.action(
+        "validate_system",
+        description="Validate team setup — checks agent definitions, memory files, inboxes, and research status",
+        from_states=["team_work", "idle"],
+        params={"team_name": "string"},
+        required=["team_name"],
+    )
+    mem.action(
         "store_team_decision",
         description="Record an expertise-weighted decision in team shared memory",
         from_states=["team_work"],
@@ -339,6 +347,10 @@ def build_machine(
     @mem.on_action("wake_check")
     def _wake_check(task="", team_name=""):
         return handle_wake_check(task, team_name, teams_dir)
+
+    @mem.on_action("validate_system")
+    def _validate_system(team_name=""):
+        return handle_validate_system(team_name, teams_dir)
 
     @mem.on_action("store_team_decision")
     def _store_team_decision(decision="", by="", context="", team_name="", weight="primary"):
