@@ -43,6 +43,15 @@ class TestExtractConfidence:
     def test_confirmed(self):
         assert extract_confidence("C[something|1|26.3]") == "confirmed"
 
+    def test_promoted(self):
+        assert extract_confidence("P[state-machines>5-states need startup-validation|src:thriveapp|promoted:26.3.8|class:principle]") == "promoted"
+
+    def test_research(self):
+        assert extract_confidence("R[EU-AI-Act: enforcement Aug-2026|src:official-text|refresh:26.6]") == "research"
+
+    def test_anti(self):
+        assert extract_confidence("¬[developer(leader learning to build)]") == "anti"
+
     def test_unknown(self):
         assert extract_confidence("some random line") == "unknown"
 

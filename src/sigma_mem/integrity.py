@@ -39,13 +39,19 @@ def verify_checksum(block: str) -> dict[str, Any]:
 def extract_confidence(block: str) -> str:
     """Detect confidence level of a block.
 
-    Returns 'confirmed', 'tentative', or 'unknown'.
+    Returns 'confirmed', 'tentative', 'promoted', 'research', 'anti', or 'unknown'.
     """
     stripped = block.strip()
     if stripped.startswith("C~") or stripped.startswith("~["):
         return "tentative"
     if stripped.startswith("C[") or stripped.startswith("C:"):
         return "confirmed"
+    if stripped.startswith("P["):
+        return "promoted"
+    if stripped.startswith("R["):
+        return "research"
+    if stripped.startswith("¬[") or stripped.startswith("¬"):
+        return "anti"
     return "unknown"
 
 
