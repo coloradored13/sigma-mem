@@ -1,12 +1,10 @@
 """Tests for team memory handlers — roster, decisions, agent memory, wake check."""
 
 from datetime import date, timedelta
-from pathlib import Path
 
 import pytest
 
 from sigma_mem.handlers import (
-    _check_agent_research,
     _detect_agent_identity,
     _detect_state,
     _detect_team_from_context,
@@ -66,7 +64,9 @@ class TestGetTeamNames:
 
 class TestDetectTeamFromContext:
     def test_finds_team(self, team_dir):
-        assert _detect_team_from_context("working with test-team", team_dir) == "test-team"
+        assert (
+            _detect_team_from_context("working with test-team", team_dir) == "test-team"
+        )
 
     def test_no_match(self, team_dir):
         assert _detect_team_from_context("just coding", team_dir) is None
@@ -74,7 +74,10 @@ class TestDetectTeamFromContext:
 
 class TestDetectStateTeam:
     def test_team_keywords(self, tmp_path):
-        assert _detect_state("wake the team for a review", tmp_path, tmp_path) == "team_work"
+        assert (
+            _detect_state("wake the team for a review", tmp_path, tmp_path)
+            == "team_work"
+        )
 
     def test_team_name_match(self, team_dir):
         mem_dir = team_dir / "memory"
@@ -129,15 +132,20 @@ class TestWakeCheck:
         assert "tech-architect" in agents
 
     def test_no_match(self, team_dir):
-        result = handle_wake_check("something unrelated entirely", "test-team", team_dir)
+        result = handle_wake_check(
+            "something unrelated entirely", "test-team", team_dir
+        )
         assert result["wake_count"] == 0
 
 
 class TestStoreTeamDecision:
     def test_stores_decision(self, team_dir):
         result = handle_store_team_decision(
-            "use-postgres", "tech-architect", "product agreed",
-            "test-team", team_dir,
+            "use-postgres",
+            "tech-architect",
+            "product agreed",
+            "test-team",
+            team_dir,
         )
         assert result["stored"] == "use-postgres"
         content = (team_dir / "test-team" / "shared" / "decisions.md").read_text()
@@ -153,17 +161,25 @@ class TestStoreTeamDecision:
 
     def test_custom_weight(self, team_dir):
         result = handle_store_team_decision(
-            "use-redis", "ux-researcher", "dissenting view",
-            "test-team", team_dir, weight="dissent",
+            "use-redis",
+            "ux-researcher",
+            "dissenting view",
+            "test-team",
+            team_dir,
+            weight="dissent",
         )
         assert result["stored"] == "use-redis"
         content = (team_dir / "test-team" / "shared" / "decisions.md").read_text()
         assert "|weight:dissent" in content
 
     def test_advisory_weight(self, team_dir):
-        result = handle_store_team_decision(
-            "consider-caching", "product-strategist", "",
-            "test-team", team_dir, weight="advisory",
+        handle_store_team_decision(
+            "consider-caching",
+            "product-strategist",
+            "",
+            "test-team",
+            team_dir,
+            weight="advisory",
         )
         content = (team_dir / "test-team" / "shared" / "decisions.md").read_text()
         assert "|weight:advisory" in content
@@ -189,9 +205,7 @@ class TestDetectAgentIdentity:
         assert result == "tech-architect"
 
     def test_no_match(self, team_dir):
-        result = _detect_agent_identity(
-            "just a random context", "test-team", team_dir
-        )
+        result = _detect_agent_identity("just a random context", "test-team", team_dir)
         assert result is None
 
 
@@ -289,9 +303,7 @@ class TestDetectAgentIdentityNoFalsePositive:
         assert result is None
 
     def test_traversal_blocked(self, team_dir):
-        result = _detect_agent_identity(
-            "I'm tech-architect", "../../etc", team_dir
-        )
+        result = _detect_agent_identity("I'm tech-architect", "../../etc", team_dir)
         assert result is None
 
 
@@ -301,7 +313,9 @@ class TestWakeCheckFullPhrase:
         assert result["wake_count"] == 0
 
     def test_full_phrase_still_matches(self, team_dir):
-        result = handle_wake_check("need a code review of the module", "test-team", team_dir)
+        result = handle_wake_check(
+            "need a code review of the module", "test-team", team_dir
+        )
         agents = [r["agent"] for r in result["wake"]]
         assert "tech-architect" in agents
 
@@ -375,16 +389,19 @@ class TestWakeCheckResearchStatus:
         qa = next(r for r in result["wake"] if r["agent"] == "code-quality-analyst")
         assert qa["research_status"] == "missing"
         assert qa["research_refreshed"] is None
-        assert any("code-quality-analyst" in w and "no domain research" in w
-                    for w in result["research_warnings"])
+        assert any(
+            "code-quality-analyst" in w and "no domain research" in w
+            for w in result["research_warnings"]
+        )
 
     def test_stale_research_flagged(self, team_dir_with_research):
         result = handle_wake_check("code review", "test-team", team_dir_with_research)
         ux = next(r for r in result["wake"] if r["agent"] == "ux-researcher")
         assert ux["research_status"] == "stale"
         assert ux["research_refreshed"] is not None
-        assert any("ux-researcher" in w and "stale" in w
-                    for w in result["research_warnings"])
+        assert any(
+            "ux-researcher" in w and "stale" in w for w in result["research_warnings"]
+        )
 
     def test_no_warnings_when_all_current(self, team_dir_with_research):
         """When only agents with current research match, no warnings."""

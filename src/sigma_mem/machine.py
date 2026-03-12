@@ -353,8 +353,12 @@ def build_machine(
         return handle_validate_system(team_name, teams_dir)
 
     @mem.on_action("store_team_decision")
-    def _store_team_decision(decision="", by="", context="", team_name="", weight="primary"):
-        return handle_store_team_decision(decision, by, context, team_name, teams_dir, weight)
+    def _store_team_decision(
+        decision="", by="", context="", team_name="", weight="primary"
+    ):
+        return handle_store_team_decision(
+            decision, by, context, team_name, teams_dir, weight
+        )
 
     @mem.on_action("search_team_memory")
     def _search_team(query="", team_name=""):

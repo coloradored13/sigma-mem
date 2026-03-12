@@ -9,7 +9,6 @@ If hateoas-agent changes its StateMachine API, these tests break first.
 
 from __future__ import annotations
 
-from pathlib import Path
 
 import pytest
 
@@ -126,7 +125,9 @@ class TestGatewayInvocation:
         result = gw.handler(context="hello")
         assert "_state" in result
 
-    def test_gateway_navigation_hints_present_when_actions_exist(self, mem_dir, teams_dir):
+    def test_gateway_navigation_hints_present_when_actions_exist(
+        self, mem_dir, teams_dir
+    ):
         """If MEMORY.md has arrow lines, navigation_hints should appear."""
         (mem_dir / "MEMORY.md").write_text(
             "U[test user|1|26.3]\n\n"

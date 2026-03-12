@@ -1,7 +1,5 @@
 """Tests for handlers — state detection, path validation, read/write ops."""
 
-from pathlib import Path
-
 import pytest
 
 from sigma_mem.handlers import (
@@ -14,7 +12,6 @@ from sigma_mem.handlers import (
     handle_get_decisions,
     handle_get_meta,
     handle_get_patterns,
-    handle_get_project,
     handle_get_user_model,
     handle_log_correction,
     handle_log_decision,
@@ -155,13 +152,17 @@ class TestNotationCheck:
         assert "pipe-separated" in warning
 
     def test_long_entry_with_pipes_no_warning(self):
-        entry = "topic|this has many words but uses pipe separators so it should be fine"
+        entry = (
+            "topic|this has many words but uses pipe separators so it should be fine"
+        )
         assert _check_notation(entry) is None
 
     def test_store_memory_includes_format_warning(self, tmp_path):
         f = tmp_path / "conv.md"
         f.write_text("existing\n")
-        entry = "This is a plain English sentence without any compressed notation or pipes"
+        entry = (
+            "This is a plain English sentence without any compressed notation or pipes"
+        )
         result = handle_store_memory(entry, "conv.md", tmp_path)
         assert "stored" in result
         assert "format_warning" in result
@@ -310,7 +311,7 @@ class TestHandleLogDecision:
         assert "faster caching" in content
 
     def test_logs_with_alternatives(self, mem_dir):
-        result = handle_log_decision("use-redis", "fast", "memcached,local", mem_dir)
+        handle_log_decision("use-redis", "fast", "memcached,local", mem_dir)
         content = (mem_dir / "decisions.md").read_text()
         assert "alt: memcached,local" in content
 

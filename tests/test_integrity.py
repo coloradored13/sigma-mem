@@ -1,9 +1,5 @@
 """Tests for integrity checks — checksums, confidence, anti-memories."""
 
-from pathlib import Path
-
-import pytest
-
 from sigma_mem.integrity import (
     check_anti_memories,
     extract_confidence,
@@ -44,10 +40,20 @@ class TestExtractConfidence:
         assert extract_confidence("C[something|1|26.3]") == "confirmed"
 
     def test_promoted(self):
-        assert extract_confidence("P[state-machines>5-states need startup-validation|src:thriveapp|promoted:26.3.8|class:principle]") == "promoted"
+        assert (
+            extract_confidence(
+                "P[state-machines>5-states need startup-validation|src:thriveapp|promoted:26.3.8|class:principle]"
+            )
+            == "promoted"
+        )
 
     def test_research(self):
-        assert extract_confidence("R[EU-AI-Act: enforcement Aug-2026|src:official-text|refresh:26.6]") == "research"
+        assert (
+            extract_confidence(
+                "R[EU-AI-Act: enforcement Aug-2026|src:official-text|refresh:26.6]"
+            )
+            == "research"
+        )
 
     def test_anti(self):
         assert extract_confidence("¬[developer(leader learning to build)]") == "anti"
@@ -59,7 +65,9 @@ class TestExtractConfidence:
 class TestCheckAntiMemories:
     def test_triggers_warning(self, tmp_path):
         mem = tmp_path / "MEMORY.md"
-        mem.write_text("¬[developer(leader learning to build) | teaching(coach mode≠teaching)]")
+        mem.write_text(
+            "¬[developer(leader learning to build) | teaching(coach mode≠teaching)]"
+        )
         warnings = check_anti_memories("developer", tmp_path)
         assert len(warnings) == 1
         assert "developer" in warnings[0]

@@ -141,35 +141,68 @@ def _detect_state(
     # (keyword, weight) — phrases get higher weight than single words
     state_signals: dict[str, list[tuple[str, int]]] = {
         "team_work": [
-            ("team review", 3), ("wake the team", 3), ("agent team", 3),
-            ("team decision", 3), ("roster", 2), ("team memory", 2),
-            ("team", 1), ("agents", 1),
+            ("team review", 3),
+            ("wake the team", 3),
+            ("agent team", 3),
+            ("team decision", 3),
+            ("roster", 2),
+            ("team memory", 2),
+            ("team", 1),
+            ("agents", 1),
         ],
         "correcting": [
-            ("you're wrong", 3), ("that's incorrect", 3), ("no, that's not", 3),
-            ("actually it's", 2), ("incorrect", 2), ("you got that wrong", 3),
-            ("wrong", 1), ("no,", 1), ("correct that", 2),
+            ("you're wrong", 3),
+            ("that's incorrect", 3),
+            ("no, that's not", 3),
+            ("actually it's", 2),
+            ("incorrect", 2),
+            ("you got that wrong", 3),
+            ("wrong", 1),
+            ("no,", 1),
+            ("correct that", 2),
         ],
         "debugging": [
-            ("traceback", 3), ("stack trace", 3), ("error message", 2),
-            ("debug", 2), ("broken", 2), ("bug", 1), ("fix", 1), ("error", 1),
+            ("traceback", 3),
+            ("stack trace", 3),
+            ("error message", 2),
+            ("debug", 2),
+            ("broken", 2),
+            ("bug", 1),
+            ("fix", 1),
+            ("error", 1),
         ],
         "returning": [
-            ("been a while", 3), ("catch me up", 3), ("what's new", 2),
-            ("coming back", 2), ("refresh my memory", 3), ("where were we", 3),
+            ("been a while", 3),
+            ("catch me up", 3),
+            ("what's new", 2),
+            ("coming back", 2),
+            ("refresh my memory", 3),
+            ("where were we", 3),
         ],
         "reviewing": [
-            ("last time we", 3), ("remember when", 2), ("previously", 2),
-            ("look back", 2), ("history of", 2), ("past decisions", 3),
+            ("last time we", 3),
+            ("remember when", 2),
+            ("previously", 2),
+            ("look back", 2),
+            ("history of", 2),
+            ("past decisions", 3),
             ("before", 1),
         ],
         "project_work": [
-            ("working on", 2), ("build", 1), ("feature", 1),
-            ("implement", 2), ("project", 1), ("code", 1),
+            ("working on", 2),
+            ("build", 1),
+            ("feature", 1),
+            ("implement", 2),
+            ("project", 1),
+            ("code", 1),
         ],
         "philosophical": [
-            ("what if", 2), ("why do you", 2), ("how do you think", 3),
-            ("philosophy", 3), ("what does it mean", 3), ("feel about", 2),
+            ("what if", 2),
+            ("why do you", 2),
+            ("how do you think", 3),
+            ("philosophy", 3),
+            ("what does it mean", 3),
+            ("feel about", 2),
         ],
     }
 
@@ -220,9 +253,7 @@ def _validate_team_name(teams_dir: Path, team_name: str) -> Path | None:
     return team_base
 
 
-def _detect_agent_identity(
-    context: str, team_name: str, teams_dir: Path
-) -> str | None:
+def _detect_agent_identity(context: str, team_name: str, teams_dir: Path) -> str | None:
     """Detect if the caller is identifying as a specific agent on a team.
 
     Looks for patterns like "I'm tech-architect" or "I am the ux-researcher"
@@ -239,11 +270,19 @@ def _detect_agent_identity(
     agent_names = [d.name for d in sorted(team_dir.iterdir()) if d.is_dir()]
     for name in agent_names:
         # Check for identity patterns
-        if any(pattern in ctx for pattern in [
-            f"i'm {name}", f"i am {name}", f"i'm the {name}",
-            f"i am the {name}", f"as {name}", f"agent {name}",
-            f"{name} here", f"{name} reporting",
-        ]):
+        if any(
+            pattern in ctx
+            for pattern in [
+                f"i'm {name}",
+                f"i am {name}",
+                f"i'm the {name}",
+                f"i am the {name}",
+                f"as {name}",
+                f"agent {name}",
+                f"{name} here",
+                f"{name} reporting",
+            ]
+        ):
             return name
 
     return None
@@ -270,9 +309,7 @@ def _get_project_names(memory_dir: Path) -> list[str]:
     return names
 
 
-def _parse_agent_roster_entry(
-    roster_content: str, agent_name: str
-) -> dict[str, str]:
+def _parse_agent_roster_entry(roster_content: str, agent_name: str) -> dict[str, str]:
     """Extract an agent's domain and wake-for from roster content."""
     for line in roster_content.splitlines():
         if not line.strip().startswith(agent_name):
@@ -304,7 +341,12 @@ def _count_inbox_unread(teams_dir: Path, team_name: str, agent_name: str) -> int
             continue
         if in_unread and stripped.startswith("##"):
             break
-        if in_unread and stripped and not stripped.startswith("#") and not stripped.startswith("---"):
+        if (
+            in_unread
+            and stripped
+            and not stripped.startswith("#")
+            and not stripped.startswith("---")
+        ):
             count += 1
     return count
 
@@ -336,9 +378,7 @@ def _get_workspace_summary(teams_dir: Path, team_name: str) -> str | None:
     return None
 
 
-def _get_team_inbox_summary(
-    teams_dir: Path, team_name: str
-) -> dict[str, int] | None:
+def _get_team_inbox_summary(teams_dir: Path, team_name: str) -> dict[str, int] | None:
     """Get unread counts for all agents on a team."""
     team_base = _validate_team_name(teams_dir, team_name)
     if team_base is None:
@@ -405,7 +445,8 @@ def _build_agent_boot(
     agents_dir = teams_dir / team_name / "agents"
     if agents_dir.exists():
         boot["teammates"] = [
-            d.name for d in sorted(agents_dir.iterdir())
+            d.name
+            for d in sorted(agents_dir.iterdir())
             if d.is_dir() and d.name != agent_name
         ]
 
@@ -415,14 +456,16 @@ def _build_agent_boot(
 # --- State-specific action handlers ---
 
 
-def handle_get_project(name: str = "", memory_dir: Path = DEFAULT_MEMORY_DIR) -> dict[str, Any]:
+def handle_get_project(
+    name: str = "", memory_dir: Path = DEFAULT_MEMORY_DIR
+) -> dict[str, Any]:
     """Load project state from projects.md."""
     content = _read_file(memory_dir, "projects.md")
     mem, actions = _split_content_and_actions(content)
 
     # Filter to specific project if name provided
     if name:
-        lines = [l for l in mem.splitlines() if name.lower() in l.lower()]
+        lines = [line for line in mem.splitlines() if name.lower() in line.lower()]
         mem = "\n".join(lines) if lines else f"No project matching '{name}' found"
 
     return {"projects": mem, "navigation": actions, "_state": "project_work"}
@@ -498,9 +541,13 @@ def handle_verify_beliefs(memory_dir: Path = DEFAULT_MEMORY_DIR) -> dict[str, An
     core = _read_file(memory_dir, "MEMORY.md")
 
     # Extract tentative beliefs (C~ lines)
-    tentative = [l for l in core.splitlines() if "~[" in l or l.strip().startswith("C~")]
+    tentative = [
+        line
+        for line in core.splitlines()
+        if "~[" in line or line.strip().startswith("C~")
+    ]
     # Extract confirmed beliefs
-    confirmed = [l for l in core.splitlines() if l.strip().startswith("C[")]
+    confirmed = [line for line in core.splitlines() if line.strip().startswith("C[")]
 
     return {
         "tentative_beliefs": tentative,
@@ -583,7 +630,9 @@ def handle_log_correction(
 
 
 def handle_log_decision(
-    choice: str, rationale: str, alternatives: str = "",
+    choice: str,
+    rationale: str,
+    alternatives: str = "",
     memory_dir: Path = DEFAULT_MEMORY_DIR,
 ) -> dict[str, Any]:
     """Log a decision to decisions.md."""
@@ -640,9 +689,17 @@ def handle_get_roster(
     """Load team roster with domains and wake-for rules."""
     content = _read_team_file(teams_dir, team_name, "shared/roster.md")
     if content is None:
-        return {"error": f"Roster not found for team: {team_name}", "_state": "team_work"}
+        return {
+            "error": f"Roster not found for team: {team_name}",
+            "_state": "team_work",
+        }
     mem, actions = _split_content_and_actions(content)
-    return {"team": team_name, "roster": mem, "navigation": actions, "_state": "team_work"}
+    return {
+        "team": team_name,
+        "roster": mem,
+        "navigation": actions,
+        "_state": "team_work",
+    }
 
 
 def handle_get_team_decisions(
@@ -651,9 +708,17 @@ def handle_get_team_decisions(
     """Load expertise-weighted team decisions."""
     content = _read_team_file(teams_dir, team_name, "shared/decisions.md")
     if content is None:
-        return {"error": f"No decisions found for team: {team_name}", "_state": "team_work"}
+        return {
+            "error": f"No decisions found for team: {team_name}",
+            "_state": "team_work",
+        }
     mem, actions = _split_content_and_actions(content)
-    return {"team": team_name, "decisions": mem, "navigation": actions, "_state": "team_work"}
+    return {
+        "team": team_name,
+        "decisions": mem,
+        "navigation": actions,
+        "_state": "team_work",
+    }
 
 
 def handle_get_team_patterns(
@@ -662,9 +727,17 @@ def handle_get_team_patterns(
     """Load cross-agent patterns from team shared memory."""
     content = _read_team_file(teams_dir, team_name, "shared/patterns.md")
     if content is None:
-        return {"error": f"No patterns found for team: {team_name}", "_state": "team_work"}
+        return {
+            "error": f"No patterns found for team: {team_name}",
+            "_state": "team_work",
+        }
     mem, actions = _split_content_and_actions(content)
-    return {"team": team_name, "patterns": mem, "navigation": actions, "_state": "team_work"}
+    return {
+        "team": team_name,
+        "patterns": mem,
+        "navigation": actions,
+        "_state": "team_work",
+    }
 
 
 def handle_get_agent_memory(
@@ -702,7 +775,10 @@ def _parse_ymd_date(date_str: str) -> date | None:
 
 
 def _check_agent_research(
-    teams_dir: Path, team_name: str, agent_name: str, today: date | None = None,
+    teams_dir: Path,
+    team_name: str,
+    agent_name: str,
+    today: date | None = None,
 ) -> dict[str, Any]:
     """Check research freshness for an agent's memory file.
 
@@ -759,7 +835,10 @@ def handle_wake_check(
     """
     content = _read_team_file(teams_dir, team_name, "shared/roster.md")
     if content is None:
-        return {"error": f"Roster not found for team: {team_name}", "_state": "team_work"}
+        return {
+            "error": f"Roster not found for team: {team_name}",
+            "_state": "team_work",
+        }
 
     task_lower = task.lower()
     recommendations = []
@@ -827,7 +906,10 @@ def handle_validate_system(
 
     content = _read_team_file(teams_dir, team_name, "shared/roster.md")
     if content is None:
-        return {"error": f"Roster not found for team: {team_name}", "_state": "team_work"}
+        return {
+            "error": f"Roster not found for team: {team_name}",
+            "_state": "team_work",
+        }
 
     # Extract agent names from roster
     agent_names = []
@@ -892,8 +974,11 @@ def handle_validate_system(
 
 
 def handle_store_team_decision(
-    decision: str, by: str, context: str = "",
-    team_name: str = "", teams_dir: Path = DEFAULT_TEAMS_DIR,
+    decision: str,
+    by: str,
+    context: str = "",
+    team_name: str = "",
+    teams_dir: Path = DEFAULT_TEAMS_DIR,
     weight: str = "primary",
 ) -> dict[str, Any]:
     """Store an expertise-weighted decision in team shared memory."""
@@ -902,7 +987,10 @@ def handle_store_team_decision(
         return {"error": f"Invalid team name: {team_name}", "_state": "team_work"}
     filepath = team_base / "shared" / "decisions.md"
     if not filepath.exists():
-        return {"error": f"Decisions file not found for team: {team_name}", "_state": "team_work"}
+        return {
+            "error": f"Decisions file not found for team: {team_name}",
+            "_state": "team_work",
+        }
 
     content = filepath.read_text()
     mem_content, actions = _split_content_and_actions(content)
@@ -920,7 +1008,9 @@ def handle_store_team_decision(
 
 
 def handle_store_agent_memory(
-    entry: str, agent_name: str, team_name: str = "",
+    entry: str,
+    agent_name: str,
+    team_name: str = "",
     teams_dir: Path = DEFAULT_TEAMS_DIR,
 ) -> dict[str, Any]:
     """Append an entry to an agent's personal memory file."""
@@ -950,11 +1040,18 @@ def handle_store_agent_memory(
         new_content += "\n" + "\n".join(actions) + "\n"
 
     filepath.write_text(new_content)
-    return {"stored": entry, "agent": agent_name, "team": team_name, "_state": "team_work"}
+    return {
+        "stored": entry,
+        "agent": agent_name,
+        "team": team_name,
+        "_state": "team_work",
+    }
 
 
 def handle_store_team_pattern(
-    pattern: str, agents: str = "", team_name: str = "",
+    pattern: str,
+    agents: str = "",
+    team_name: str = "",
     teams_dir: Path = DEFAULT_TEAMS_DIR,
 ) -> dict[str, Any]:
     """Store a cross-agent pattern in team shared memory."""
@@ -963,7 +1060,10 @@ def handle_store_team_pattern(
         return {"error": f"Invalid team name: {team_name}", "_state": "team_work"}
     filepath = team_base / "shared" / "patterns.md"
     if not filepath.exists():
-        return {"error": f"Patterns file not found for team: {team_name}", "_state": "team_work"}
+        return {
+            "error": f"Patterns file not found for team: {team_name}",
+            "_state": "team_work",
+        }
 
     content = filepath.read_text()
     mem_content, actions = _split_content_and_actions(content)
@@ -987,7 +1087,11 @@ def handle_search_memory(
     results = {}
     for md_file in sorted(memory_dir.glob("*.md")):
         content = md_file.read_text()
-        matches = [l.strip() for l in content.splitlines() if query.lower() in l.lower()]
+        matches = [
+            line.strip()
+            for line in content.splitlines()
+            if query.lower() in line.lower()
+        ]
         if matches:
             results[md_file.name] = matches
 
@@ -1017,7 +1121,9 @@ def handle_search_team_memory(
     if shared_dir.exists():
         for md_file in sorted(shared_dir.glob("*.md")):
             content = md_file.read_text()
-            matches = [l.strip() for l in content.splitlines() if q in l.lower()]
+            matches = [
+                line.strip() for line in content.splitlines() if q in line.lower()
+            ]
             if matches:
                 results[f"shared/{md_file.name}"] = matches
 
@@ -1030,7 +1136,9 @@ def handle_search_team_memory(
             mem_file = agent_dir / "memory.md"
             if mem_file.exists():
                 content = mem_file.read_text()
-                matches = [l.strip() for l in content.splitlines() if q in l.lower()]
+                matches = [
+                    line.strip() for line in content.splitlines() if q in line.lower()
+                ]
                 if matches:
                     results[f"agents/{agent_dir.name}/memory.md"] = matches
 
@@ -1039,7 +1147,9 @@ def handle_search_team_memory(
     if inboxes_dir.exists():
         for inbox_file in sorted(inboxes_dir.glob("*.md")):
             content = inbox_file.read_text()
-            matches = [l.strip() for l in content.splitlines() if q in l.lower()]
+            matches = [
+                line.strip() for line in content.splitlines() if q in line.lower()
+            ]
             if matches:
                 results[f"inboxes/{inbox_file.name}"] = matches
 

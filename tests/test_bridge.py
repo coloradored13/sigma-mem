@@ -1,7 +1,5 @@
 """Tests for Issue-14: team memory bridge — enriched boot, team search, team writes."""
 
-from pathlib import Path
-
 import pytest
 
 from sigma_mem.handlers import (
@@ -263,7 +261,9 @@ class TestStoreAgentMemory:
         )
         assert result["stored"] == "review-2: found injection"
         assert result["agent"] == "tech-architect"
-        content = (bridge_team / "test-team" / "agents" / "tech-architect" / "memory.md").read_text()
+        content = (
+            bridge_team / "test-team" / "agents" / "tech-architect" / "memory.md"
+        ).read_text()
         assert "review-2: found injection" in content
         # Existing content preserved
         assert "path traversal" in content
@@ -301,7 +301,10 @@ class TestStoreAgentMemory:
 class TestStoreTeamPattern:
     def test_stores_pattern(self, bridge_team):
         result = handle_store_team_pattern(
-            "convergence:bridge-gap", "tech-architect,ux-researcher", "test-team", bridge_team
+            "convergence:bridge-gap",
+            "tech-architect,ux-researcher",
+            "test-team",
+            bridge_team,
         )
         assert result["stored"] == "convergence:bridge-gap"
         content = (bridge_team / "test-team" / "shared" / "patterns.md").read_text()
@@ -319,7 +322,10 @@ class TestStoreTeamPattern:
         assert result["stored"] == "observation:tests-stable"
         content = (bridge_team / "test-team" / "shared" / "patterns.md").read_text()
         assert "observation:tests-stable" in content
-        assert "|agents:" not in content.split("observation:tests-stable")[1].split("\n")[0]
+        assert (
+            "|agents:"
+            not in content.split("observation:tests-stable")[1].split("\n")[0]
+        )
 
     def test_invalid_team(self, bridge_team):
         result = handle_store_team_pattern("pattern", "", "../../etc", bridge_team)
