@@ -246,11 +246,24 @@ def _detect_team_from_context(context: str, teams_dir: Path) -> str | None:
 
 
 def _validate_team_name(teams_dir: Path, team_name: str) -> Path | None:
-    """Validate that team_name resolves within teams_dir. Returns resolved path or None."""
-    team_base = (teams_dir / team_name).resolve()
-    if not team_base.is_relative_to(teams_dir.resolve()):
+    """Validate that team_name resolves within teams_dir. Returns resolved path or None.
+
+    Supports symlinked team directories (e.g., ~/.claude/teams/sigma-review
+    symlinked to a repo). Validates the unresolved path stays within teams_dir,
+    then returns the resolved path for actual file access.
+    """
+    # Validate the logical path (before symlink resolution) to prevent traversal
+    logical = teams_dir / team_name
+    try:
+        # Use PurePosixPath-level check: no ".." escaping teams_dir
+        logical.relative_to(teams_dir)
+    except ValueError:
         return None
-    return team_base
+    # Return resolved path for actual file I/O (follows symlinks)
+    resolved = logical.resolve()
+    if not resolved.exists():
+        return None
+    return resolved
 
 
 def _detect_agent_identity(context: str, team_name: str, teams_dir: Path) -> str | None:
@@ -676,7 +689,7 @@ def _read_team_file(teams_dir: Path, team_name: str, relative_path: str) -> str 
     if team_base is None:
         return None
     filepath = (team_base / relative_path).resolve()
-    if not filepath.is_relative_to(team_base.resolve()):
+    if not filepath.is_relative_to(team_base):
         return None
     if not filepath.exists():
         return None
@@ -1024,7 +1037,7 @@ def handle_store_agent_memory(
     if team_base is None:
         return {"error": f"Invalid team name: {team_name}", "_state": "team_work"}
     filepath = team_base / "agents" / agent_name / "memory.md"
-    if not filepath.resolve().is_relative_to(team_base.resolve()):
+    if not filepath.resolve().is_relative_to(team_base):
         return {"error": f"Invalid agent name: {agent_name}", "_state": "team_work"}
     if not filepath.exists():
         return {
