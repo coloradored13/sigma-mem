@@ -19,8 +19,27 @@ dependencies = [
     "mcp",
 ]
 
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "pytest-cov",
+    "ruff",
+]
+
 [project.scripts]
 sigma-mem = "sigma_mem.server:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--cov=sigma_mem --cov-report=term-missing"
+
+[tool.coverage.run]
+source = ["sigma_mem"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+skip_empty = true
