@@ -774,14 +774,29 @@ def handle_get_agent_memory(
 
 
 def _parse_ymd_date(date_str: str) -> date | None:
-    """Parse a YY.M.D date string into a date object. Returns None on failure."""
+    """Parse a date string into a date object.
+
+    Accepts two formats:
+    - YY.M.D  (e.g. "26.3.22")
+    - YYYY-MM-DD (e.g. "2026-03-22")
+    Returns None on failure.
+    """
     try:
-        parts = date_str.strip().split(".")
-        if len(parts) != 3:
-            return None
-        year = 2000 + int(parts[0])
-        month = int(parts[1])
-        day = int(parts[2])
+        s = date_str.strip()
+        if "-" in s:
+            parts = s.split("-")
+            if len(parts) != 3:
+                return None
+            year = int(parts[0])
+            month = int(parts[1])
+            day = int(parts[2])
+        else:
+            parts = s.split(".")
+            if len(parts) != 3:
+                return None
+            year = 2000 + int(parts[0])
+            month = int(parts[1])
+            day = int(parts[2])
         return date(year, month, day)
     except (ValueError, IndexError):
         return None
@@ -817,7 +832,7 @@ def _check_agent_research(
             break
         if in_research and "refreshed:" in stripped:
             # Extract date after "refreshed:"
-            match = re.search(r"refreshed:\s*(\d+\.\d+\.\d+)", stripped)
+            match = re.search(r"refreshed:\s*(\d+[\.\-]\d+[\.\-]\d+)", stripped)
             if match:
                 refreshed_date = match.group(1)
                 break

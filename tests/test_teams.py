@@ -516,3 +516,32 @@ class TestValidateSystem:
         assert result["valid"] is True
         assert result["issue_count"] == 0
         assert len(result["issues"]) == 0
+
+    def test_iso_date_format_research(self, tmp_path):
+        """Research with YYYY-MM-DD date format is detected as current."""
+        team = tmp_path / "test-team"
+        shared = team / "shared"
+        shared.mkdir(parents=True)
+        agent_dir = team / "agents" / "iso-agent"
+        agent_dir.mkdir(parents=True)
+        inboxes = team / "inboxes"
+        inboxes.mkdir(parents=True)
+
+        today = date.today()
+        today_iso = today.strftime("%Y-%m-%d")
+        (agent_dir / "memory.md").write_text(
+            f"# iso-agent\n\n## research\n"
+            f"R[topic:findings|refreshed:{today_iso}|next:2026-04-22]\n"
+        )
+        (inboxes / "iso-agent.md").write_text("## unread\n\n## read\n")
+        (shared / "roster.md").write_text(
+            "iso-agent |domain: testing |wake-for: test\n"
+        )
+        agents_def_dir = tmp_path / "agent_defs"
+        agents_def_dir.mkdir()
+        (agents_def_dir / "iso-agent.md").write_text("# iso\n")
+
+        result = handle_validate_system("test-team", tmp_path, agents_def_dir)
+        agent_result = result["agents"][0]
+        assert agent_result["research_status"] == "current"
+        assert agent_result["research_refreshed"] == today_iso
