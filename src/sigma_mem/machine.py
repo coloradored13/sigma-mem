@@ -6,6 +6,7 @@ from pathlib import Path
 
 from hateoas_agent import StateMachine
 
+from .dream import dream
 from .handlers import (
     DEFAULT_MEMORY_DIR,
     DEFAULT_TEAMS_DIR,
@@ -173,6 +174,22 @@ def build_machine(
         from_states=["returning", "idle"],
     )
 
+    # --- Dream consolidation ---
+    mem.action(
+        "dream",
+        description=(
+            "Run memory consolidation — consolidate duplicates, prune stale entries, "
+            "reorganize beliefs, and index integrity. Dry-run by default; set apply=true "
+            "to execute safe changes (dedup only). Scope: personal, team, or all."
+        ),
+        from_states=["idle", "returning", "reviewing"],
+        params={
+            "scope": "string",
+            "team_name": "string",
+            "apply": "string",
+        },
+    )
+
     # --- Team work ---
     mem.action(
         "get_roster",
@@ -325,6 +342,15 @@ def build_machine(
     @mem.on_action("verify_beliefs")
     def _verify():
         return handle_verify_beliefs(memory_dir)
+
+    # --- Dream handler ---
+
+    @mem.on_action("dream")
+    def _dream(scope="all", team_name="", apply="false"):
+        apply_bool = apply.lower() in ("true", "1", "yes")
+        result = dream(memory_dir, teams_dir, scope=scope, team_name=team_name, apply=apply_bool)
+        result["_state"] = "idle"
+        return result
 
     # --- Team handlers ---
 
