@@ -459,3 +459,120 @@ class TestTransitionMetadata:
         from_states, to_state = meta
         assert isinstance(from_states, list)
         assert "team_work" in from_states
+
+
+# ---------------------------------------------------------------------------
+# 9. Handler closure invocation — exercise the closure bodies in machine.py
+#    that delegate to handle_* functions with baked-in memory_dir/teams_dir.
+# ---------------------------------------------------------------------------
+
+
+class TestHandlerClosureInvocation:
+    """Cover machine.py closure bodies (lines 262-353) by invoking each
+    registered handler through machine.get_handler()."""
+
+    def test_search_memory(self, machine):
+        handler = machine.get_handler("search_memory")
+        result = handler(query="test")
+        assert isinstance(result, dict)
+
+    def test_store_memory(self, machine):
+        handler = machine.get_handler("store_memory")
+        result = handler(entry="test entry", file="conv.md")
+        assert isinstance(result, dict)
+        assert result.get("stored") == "test entry"
+
+    def test_check_integrity(self, machine):
+        handler = machine.get_handler("check_integrity")
+        result = handler()
+        assert isinstance(result, dict)
+
+    def test_get_meta(self, machine):
+        handler = machine.get_handler("get_meta")
+        result = handler()
+        assert isinstance(result, dict)
+
+    def test_get_project(self, machine):
+        handler = machine.get_handler("get_project")
+        result = handler(name="sigma-mem")
+        assert isinstance(result, dict)
+
+    def test_get_decisions(self, machine):
+        handler = machine.get_handler("get_decisions")
+        result = handler()
+        assert isinstance(result, dict)
+
+    def test_log_decision(self, machine):
+        handler = machine.get_handler("log_decision")
+        result = handler(choice="use-redis", rationale="fast", alternatives="memcached")
+        assert isinstance(result, dict)
+
+    def test_get_failures(self, machine):
+        handler = machine.get_handler("get_failures")
+        result = handler()
+        assert isinstance(result, dict)
+
+    def test_log_failure(self, machine):
+        handler = machine.get_handler("log_failure")
+        result = handler(what="bad deploy", why="config error")
+        assert isinstance(result, dict)
+
+    def test_get_corrections(self, machine):
+        handler = machine.get_handler("get_corrections")
+        result = handler()
+        assert isinstance(result, dict)
+
+    def test_log_correction(self, machine):
+        handler = machine.get_handler("log_correction")
+        result = handler(error="wrong path", fix="updated path")
+        assert isinstance(result, dict)
+
+    def test_update_belief(self, machine):
+        handler = machine.get_handler("update_belief")
+        result = handler(old="postgres is slow", new="postgres is fast enough")
+        assert isinstance(result, dict)
+
+    def test_get_user_model(self, machine):
+        handler = machine.get_handler("get_user_model")
+        result = handler()
+        assert isinstance(result, dict)
+
+    def test_get_patterns(self, machine):
+        handler = machine.get_handler("get_patterns")
+        result = handler()
+        assert isinstance(result, dict)
+
+    def test_get_conversations(self, machine):
+        handler = machine.get_handler("get_conversations")
+        result = handler()
+        assert isinstance(result, dict)
+
+    def test_full_refresh(self, machine):
+        handler = machine.get_handler("full_refresh")
+        result = handler()
+        assert isinstance(result, dict)
+
+    def test_verify_beliefs(self, machine):
+        handler = machine.get_handler("verify_beliefs")
+        result = handler()
+        assert isinstance(result, dict)
+
+    def test_get_team_decisions(self, machine):
+        handler = machine.get_handler("get_team_decisions")
+        result = handler(team_name="test-team")
+        assert isinstance(result, dict)
+
+    def test_get_team_patterns(self, machine):
+        handler = machine.get_handler("get_team_patterns")
+        result = handler(team_name="test-team")
+        assert isinstance(result, dict)
+
+    def test_get_agent_memory(self, machine):
+        handler = machine.get_handler("get_agent_memory")
+        result = handler(team_name="test-team", agent_name="tech-architect")
+        assert isinstance(result, dict)
+
+    def test_validate_system(self, machine):
+        handler = machine.get_handler("validate_system")
+        result = handler(team_name="test-team")
+        assert isinstance(result, dict)
