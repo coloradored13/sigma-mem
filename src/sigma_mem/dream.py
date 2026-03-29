@@ -54,21 +54,31 @@ def _extract_leading_date(line: str) -> date | None:
 
 
 def _extract_section_refreshed_date(content: str) -> date | None:
-    """Extract the section-level 'refreshed: YY.M.D' date from a ## research section.
+    """Extract the section-level date from a ## research section.
+
+    Date resolution order:
+    1. Standalone 'refreshed: YY.M.D' line within the section (highest priority)
+    2. Parenthetical date in section header: ## research: topic (26.3.21)
 
     Agent research sections typically have a standalone line like:
         refreshed: 26.3.18 | next: 26.4
     This date applies to all R[] blocks in the section.
     """
     in_research = False
+    header_date: date | None = None
     for line in content.splitlines():
         stripped = line.strip().lower()
         if stripped.startswith("## research"):
             in_research = True
+            # Check for parenthetical date in header: (26.3.21) or (rerun 26.3.13)
+            match = re.search(r"\((?:.*?)(\d{2}\.\d{1,2}\.\d{1,2})\)", stripped)
+            if match:
+                header_date = _parse_date(match.group(1))
             continue
         if in_research and stripped.startswith("##"):
             break
         if in_research and "refreshed:" in stripped:
+            # refreshed: line takes priority over header date
             # Try YY.M.D format
             match = re.search(r"refreshed:\s*(\d{2}\.\d{1,2}\.\d{1,2})", stripped)
             if match:
@@ -77,18 +87,24 @@ def _extract_section_refreshed_date(content: str) -> date | None:
             match = re.search(r"refreshed:\s*(\d{4}-\d{2}-\d{2})", stripped)
             if match:
                 return _parse_date(match.group(1))
-    return None
+    # Fall back to header date if no refreshed: line found
+    return header_date
 
 
-def _extract_research_dates(content: str) -> list[tuple[str, date | None]]:
+def _extract_research_dates(
+    content: str, fallback_date: date | None = None
+) -> list[tuple[str, date | None]]:
     """Extract R[] blocks and their dates from content.
 
     Date resolution order per R[] block:
     1. Inline YY.M.D at start: R[26.3.22]
     2. Inline refreshed: key: R[topic:...|refreshed:2026-03-14] or |refreshed:26.3.14]
     3. Section-level refreshed: date (applies to all R[] blocks without own date)
+    4. Caller-provided fallback_date (for when section header was stripped)
     """
     section_date = _extract_section_refreshed_date(content)
+    if section_date is None:
+        section_date = fallback_date
     results = []
     for line in content.splitlines():
         stripped = line.strip()
@@ -242,7 +258,10 @@ def _find_stale_research(
             Use for team agent memories where R[] blocks appear in findings,
             calibration, and other non-research sections.
     """
+    fallback_date: date | None = None
     if research_section_only:
+        # Extract section-level date from FULL content before stripping header
+        fallback_date = _extract_section_refreshed_date(content)
         section = _extract_research_section(content)
         if section is None:
             return []
@@ -250,7 +269,7 @@ def _find_stale_research(
 
     today = _today()
     stale = []
-    for line, parsed_date in _extract_research_dates(content):
+    for line, parsed_date in _extract_research_dates(content, fallback_date=fallback_date):
         if parsed_date is None:
             stale.append({"line": line[:80], "reason": "no_date_found"})
         elif (today - parsed_date).days > max_age_days:

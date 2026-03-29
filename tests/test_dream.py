@@ -173,6 +173,32 @@ class TestExtractSectionRefreshedDate:
         content = "## research\nR[stuff]\n## other\nrefreshed: 26.3.18\n"
         assert _extract_section_refreshed_date(content) is None
 
+    def test_finds_parenthetical_date_in_header(self):
+        content = "## research: cognitive-enhancement-meta-analysis (26.3.21)\nR[1]: stuff\n"
+        assert _extract_section_refreshed_date(content) == date(2026, 3, 21)
+
+    def test_finds_parenthetical_date_with_prefix(self):
+        content = "## research (rerun 26.3.13)\nR[topic]: stuff\n"
+        assert _extract_section_refreshed_date(content) == date(2026, 3, 13)
+
+    def test_refreshed_line_takes_priority_over_header_date(self):
+        content = (
+            "## research: topic (26.3.10)\n"
+            "R[stuff]\n"
+            "refreshed: 26.3.22\n"
+        )
+        assert _extract_section_refreshed_date(content) == date(2026, 3, 22)
+
+    def test_multiple_research_headers_last_date_wins(self):
+        content = (
+            "## research\n"
+            "R[first]\n"
+            "## research (rerun 26.3.13)\n"
+            "R[second]\n"
+            "## other\n"
+        )
+        assert _extract_section_refreshed_date(content) == date(2026, 3, 13)
+
 
 class TestExtractResearchDates:
     def test_finds_r_blocks_with_inline_dates(self):
@@ -218,6 +244,35 @@ class TestExtractResearchDates:
         results = _extract_research_dates(content)
         assert len(results) == 1
         assert results[0][1] is None
+
+    def test_fallback_date_used_when_no_section_date(self):
+        content = "R[topic]: some content\n"
+        results = _extract_research_dates(content, fallback_date=date(2026, 3, 21))
+        assert len(results) == 1
+        assert results[0][1] == date(2026, 3, 21)
+
+    def test_section_date_takes_priority_over_fallback(self):
+        content = (
+            "## research\n"
+            "R[topic]: stuff\n"
+            "refreshed: 26.3.22\n"
+        )
+        results = _extract_research_dates(content, fallback_date=date(2026, 3, 1))
+        assert len(results) == 1
+        assert results[0][1] == date(2026, 3, 22)
+
+    def test_numbered_r_blocks_use_section_date(self):
+        """R[1]:, R[2]: etc. should inherit section-level date."""
+        content = (
+            "## research: cognitive-enhancement (26.3.21)\n"
+            "R[1]: DeepMind cognitive profile mapping\n"
+            "R[2]: Metacognition paradox\n"
+            "R[3]: FORMAT vs COGNITIVE transfer\n"
+        )
+        results = _extract_research_dates(content)
+        assert len(results) == 3
+        for _, d in results:
+            assert d == date(2026, 3, 21)
 
 
 # ---------------------------------------------------------------------------
@@ -340,6 +395,36 @@ class TestFindStaleResearch:
         # With section filter — only the 1 in ## research
         section_results = _find_stale_research(content, research_section_only=True)
         assert len(section_results) == 1
+        # Should resolve date from section-level refreshed line (not no_date_found)
+        assert section_results[0]["reason"] == "expired"
+
+    def test_research_section_only_preserves_header_date(self):
+        """When header has parenthetical date, R[] blocks should inherit it."""
+        content = (
+            "## findings\n"
+            "R[finding]: not research\n"
+            "## research: cognitive-enhancement (25.1.1)\n"
+            "R[1]: DeepMind mapping\n"
+            "R[2]: Metacognition paradox\n"
+            "## calibration\n"
+            "R[cal]: not research\n"
+        )
+        results = _find_stale_research(content, research_section_only=True)
+        assert len(results) == 2
+        for r in results:
+            assert r["reason"] == "expired"
+            assert r["date"] == "2025-01-01"
+
+    def test_research_section_only_no_date_is_flagged(self):
+        """R[] blocks with genuinely no date should still be flagged."""
+        content = (
+            "## research\n"
+            "R[topic-without-any-date]: stuff\n"
+            "## other\n"
+        )
+        results = _find_stale_research(content, research_section_only=True)
+        assert len(results) == 1
+        assert results[0]["reason"] == "no_date_found"
 
 
 class TestFindStaleDatedEntries:
