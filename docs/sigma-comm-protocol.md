@@ -1,5 +1,3 @@
-> **Note:** The canonical ΣComm specification is in [sigma-system-overview/agent-infrastructure/agents/SIGMA-COMM-SPEC.md](https://github.com/coloradored13/sigma-system-overview/blob/main/agent-infrastructure/agents/SIGMA-COMM-SPEC.md). This file is a project-local reference.
-
 # ΣComm — Compressed Agent Communication Protocol
 
 ## Why

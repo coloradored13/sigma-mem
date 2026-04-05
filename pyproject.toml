@@ -7,11 +7,11 @@ name = "sigma-mem"
 version = "0.2.0"
 description = "Persistent agent teams that learn across sessions — HATEOAS-navigated memory as an MCP server"
 requires-python = ">=3.11"
-license = "MIT"
+license = "Apache-2.0"
 classifiers = [
     "Development Status :: 3 - Alpha",
+    "License :: OSI Approved :: Apache Software License",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
-
     "Programming Language :: Python :: 3",
 ]
 dependencies = [
@@ -28,6 +28,11 @@ dev = [
 
 [project.scripts]
 sigma-mem = "sigma_mem.server:main"
+
+[project.urls]
+Homepage = "https://github.com/coloradored13/sigma-mem"
+Repository = "https://github.com/coloradored13/sigma-mem"
+Issues = "https://github.com/coloradored13/sigma-mem/issues"
 
 [tool.setuptools.packages.find]
 where = ["src"]
