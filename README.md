@@ -143,7 +143,7 @@ sigma-mem --memory-dir /path/to/memory --teams-dir /path/to/teams
 
 ## Architecture
 
-Six modules, ~2,600 lines:
+Five primary modules, ~2,600 lines:
 
 - `machine.py` — Declarative HATEOAS state machine (states, actions, handler bindings)
 - `handlers.py` — All read/write operations for personal and team memory
@@ -151,7 +151,7 @@ Six modules, ~2,600 lines:
 - `integrity.py` — Checksums, confidence detection, anti-memory verification
 - `server.py` — MCP server entry point
 
-293 tests across 7 test modules (~2,600 lines).
+293 tests across 6 test modules (~2,633 lines).
 
 Built on [hateoas-agent](https://github.com/coloradored13/hateoas-agent) for state machine and MCP serving.
 
