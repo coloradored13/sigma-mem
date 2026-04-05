@@ -172,12 +172,14 @@ def _find_duplicates(lines: list[str]) -> list[dict[str, Any]]:
     duplicates = []
     for key, indices in seen.items():
         if len(indices) > 1:
-            duplicates.append({
-                "normalized": key[:80],
-                "lines": [lines[i].strip() for i in indices],
-                "line_numbers": indices,
-                "count": len(indices),
-            })
+            duplicates.append(
+                {
+                    "normalized": key[:80],
+                    "lines": [lines[i].strip() for i in indices],
+                    "line_numbers": indices,
+                    "count": len(indices),
+                }
+            )
     return duplicates
 
 
@@ -269,16 +271,20 @@ def _find_stale_research(
 
     today = _today()
     stale = []
-    for line, parsed_date in _extract_research_dates(content, fallback_date=fallback_date):
+    for line, parsed_date in _extract_research_dates(
+        content, fallback_date=fallback_date
+    ):
         if parsed_date is None:
             stale.append({"line": line[:80], "reason": "no_date_found"})
         elif (today - parsed_date).days > max_age_days:
-            stale.append({
-                "line": line[:80],
-                "date": str(parsed_date),
-                "age_days": (today - parsed_date).days,
-                "reason": "expired",
-            })
+            stale.append(
+                {
+                    "line": line[:80],
+                    "date": str(parsed_date),
+                    "age_days": (today - parsed_date).days,
+                    "reason": "expired",
+                }
+            )
     return stale
 
 
@@ -294,11 +300,13 @@ def _find_stale_dated_entries(
             continue
         entry_date = _extract_leading_date(stripped)
         if entry_date and (today - entry_date).days > max_age_days:
-            stale.append({
-                "line": stripped[:80],
-                "date": str(entry_date),
-                "age_days": (today - entry_date).days,
-            })
+            stale.append(
+                {
+                    "line": stripped[:80],
+                    "date": str(entry_date),
+                    "age_days": (today - entry_date).days,
+                }
+            )
     return stale
 
 
@@ -356,14 +364,14 @@ def _prune_team(teams_dir: Path, team_name: str) -> dict[str, Any]:
             if not mem_file.exists():
                 continue
             content = mem_file.read_text()
-            stale_r = _find_stale_research(
-                content, research_section_only=True
-            )
+            stale_r = _find_stale_research(content, research_section_only=True)
             if stale_r:
-                stale_agents.append({
-                    "agent": agent_dir.name,
-                    "stale_research": stale_r,
-                })
+                stale_agents.append(
+                    {
+                        "agent": agent_dir.name,
+                        "stale_research": stale_r,
+                    }
+                )
         if stale_agents:
             results["stale_agent_research"] = stale_agents
 
@@ -385,10 +393,12 @@ def _prune_team(teams_dir: Path, team_name: str) -> dict[str, Any]:
                 if in_read and stripped and not stripped.startswith("#"):
                     read_lines += 1
             if read_lines > 0:
-                clearable.append({
-                    "inbox": inbox_file.stem,
-                    "read_lines": read_lines,
-                })
+                clearable.append(
+                    {
+                        "inbox": inbox_file.stem,
+                        "read_lines": read_lines,
+                    }
+                )
         if clearable:
             results["clearable_inboxes"] = clearable
 
@@ -423,11 +433,13 @@ def _find_promotable_beliefs(memory_dir: Path) -> list[dict[str, Any]]:
     promotable = []
     for key, files in tentative.items():
         if len(files) >= 2:
-            promotable.append({
-                "belief": key[:80],
-                "found_in": list(set(files)),
-                "occurrences": len(files),
-            })
+            promotable.append(
+                {
+                    "belief": key[:80],
+                    "found_in": list(set(files)),
+                    "occurrences": len(files),
+                }
+            )
 
     return promotable
 
@@ -449,18 +461,18 @@ def _find_systemic_patterns(memory_dir: Path) -> list[dict[str, Any]]:
             if len(parts) >= 2:
                 topic = _normalize_for_dedup(parts[1])
                 if topic and len(topic) > 3:
-                    themes.setdefault(topic, []).append(
-                        f"{filename}:{stripped[:60]}"
-                    )
+                    themes.setdefault(topic, []).append(f"{filename}:{stripped[:60]}")
 
     systemic = []
     for topic, occurrences in themes.items():
         if len(occurrences) >= 3:
-            systemic.append({
-                "topic": topic[:60],
-                "count": len(occurrences),
-                "entries": occurrences[:5],  # Cap at 5 examples
-            })
+            systemic.append(
+                {
+                    "topic": topic[:60],
+                    "count": len(occurrences),
+                    "entries": occurrences[:5],  # Cap at 5 examples
+                }
+            )
 
     return systemic
 
@@ -491,11 +503,13 @@ def _find_team_canonical_patterns(
     canonical = []
     for key, entries in themes.items():
         if len(entries) >= 2:
-            canonical.append({
-                "pattern": key[:60],
-                "count": len(entries),
-                "entries": entries[:3],
-            })
+            canonical.append(
+                {
+                    "pattern": key[:60],
+                    "count": len(entries),
+                    "entries": entries[:3],
+                }
+            )
 
     return canonical
 
@@ -558,12 +572,14 @@ def _index_personal(memory_dir: Path) -> dict[str, Any]:
                         file_checksum_failures += 1
                         checksum_issues += 1
 
-        file_stats.append({
-            "file": md_file.name,
-            "lines": line_count,
-            "checksums_verified": file_checksums,
-            "checksum_failures": file_checksum_failures,
-        })
+        file_stats.append(
+            {
+                "file": md_file.name,
+                "lines": line_count,
+                "checksums_verified": file_checksums,
+                "checksum_failures": file_checksum_failures,
+            }
+        )
 
     return {
         "files": file_stats,
@@ -595,20 +611,24 @@ def _index_team(teams_dir: Path, team_name: str) -> dict[str, Any]:
             mem_file = agent_dir / "memory.md"
             if mem_file.exists():
                 lines = mem_file.read_text().splitlines()
-                agent_stats.append({
-                    "agent": agent_dir.name,
-                    "memory_lines": len(lines),
-                })
+                agent_stats.append(
+                    {
+                        "agent": agent_dir.name,
+                        "memory_lines": len(lines),
+                    }
+                )
 
     inbox_stats: list[dict[str, Any]] = []
     inboxes_dir = team_base / "inboxes"
     if inboxes_dir.exists():
         for inbox_file in sorted(inboxes_dir.glob("*.md")):
             lines = inbox_file.read_text().splitlines()
-            inbox_stats.append({
-                "inbox": inbox_file.stem,
-                "lines": len(lines),
-            })
+            inbox_stats.append(
+                {
+                    "inbox": inbox_file.stem,
+                    "lines": len(lines),
+                }
+            )
 
     return {
         "shared_files": shared_stats,
@@ -793,12 +813,10 @@ def _build_summary(journal: dict[str, Any]) -> dict[str, Any]:
         reorganize = personal.get("reorganize", {})
 
         dedup_count = sum(
-            sum(d["count"] - 1 for d in dupes)
-            for dupes in consolidate.values()
+            sum(d["count"] - 1 for d in dupes) for dupes in consolidate.values()
         )
         stale_count = sum(
-            len(v.get("stale_research", []))
-            + len(v.get("old_entries", []))
+            len(v.get("stale_research", [])) + len(v.get("old_entries", []))
             for v in prune.values()
         )
         promotable_count = len(reorganize.get("promotable_beliefs", []))
@@ -814,9 +832,7 @@ def _build_summary(journal: dict[str, Any]) -> dict[str, Any]:
 
         applied = personal.get("applied", {})
         if applied:
-            summary["actions_applied"] += sum(
-                applied.get("dedup_removed", {}).values()
-            )
+            summary["actions_applied"] += sum(applied.get("dedup_removed", {}).values())
 
     teams = journal.get("teams", {})
     for tn, team_report in teams.items():
@@ -843,8 +859,6 @@ def _build_summary(journal: dict[str, Any]) -> dict[str, Any]:
 
         applied = team_report.get("applied", {})
         if applied:
-            summary["actions_applied"] += sum(
-                applied.get("dedup_removed", {}).values()
-            )
+            summary["actions_applied"] += sum(applied.get("dedup_removed", {}).values())
 
     return summary

@@ -348,7 +348,9 @@ def build_machine(
     @mem.on_action("dream")
     def _dream(scope="all", team_name="", apply="false"):
         apply_bool = apply.lower() in ("true", "1", "yes")
-        result = dream(memory_dir, teams_dir, scope=scope, team_name=team_name, apply=apply_bool)
+        result = dream(
+            memory_dir, teams_dir, scope=scope, team_name=team_name, apply=apply_bool
+        )
         result["_state"] = "idle"
         return result
 

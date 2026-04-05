@@ -51,8 +51,7 @@ def mem_dir(tmp_path):
         "26.3.10|use-redis|why: caching\n"
     )
     (d / "corrections.md").write_text(
-        "25.6.1|old correction|fixed long ago\n"
-        "26.3.20|recent correction|just fixed\n"
+        "25.6.1|old correction|fixed long ago\n26.3.20|recent correction|just fixed\n"
     )
     (d / "patterns.md").write_text(
         "C~[tentative belief about testing]\n"
@@ -60,10 +59,7 @@ def mem_dir(tmp_path):
         "convergence: agents agree on arch\n"  # duplicate
     )
     (d / "conv.md").write_text("26.3.7|discussed arch\n")
-    (d / "failures.md").write_text(
-        "25.5.1|tried X|nope\n"
-        "26.3.18|tried Y|also nope\n"
-    )
+    (d / "failures.md").write_text("25.5.1|tried X|nope\n26.3.18|tried Y|also nope\n")
     (d / "meta.md").write_text("v0.1: initial\n")
     (d / "projects.md").write_text("*sigma-mem[memory MCP|1|26.3]\n")
     (d / "user.md").write_text("prefers simple\n")
@@ -115,11 +111,7 @@ def teams_dir(tmp_path):
         "refreshed: 26.3.20\n"  # current — section-level date
     )
     (inboxes / "tech-architect.md").write_text(
-        "## unread\n"
-        "msg from ux\n"
-        "## read\n"
-        "old msg 1\n"
-        "old msg 2\n"
+        "## unread\nmsg from ux\n## read\nold msg 1\nold msg 2\n"
     )
     (inboxes / "ux-researcher.md").write_text("## unread\n")
 
@@ -133,7 +125,10 @@ def teams_dir(tmp_path):
 
 class TestNormalizeForDedup:
     def test_strips_leading_date(self):
-        assert _normalize_for_dedup("26.3.7|use-postgres|why: fast") == "use-postgres|why: fast"
+        assert (
+            _normalize_for_dedup("26.3.7|use-postgres|why: fast")
+            == "use-postgres|why: fast"
+        )
 
     def test_strips_trailing_date(self):
         assert "26.3" not in _normalize_for_dedup("some entry|26.3.7]")
@@ -174,7 +169,9 @@ class TestExtractSectionRefreshedDate:
         assert _extract_section_refreshed_date(content) is None
 
     def test_finds_parenthetical_date_in_header(self):
-        content = "## research: cognitive-enhancement-meta-analysis (26.3.21)\nR[1]: stuff\n"
+        content = (
+            "## research: cognitive-enhancement-meta-analysis (26.3.21)\nR[1]: stuff\n"
+        )
         assert _extract_section_refreshed_date(content) == date(2026, 3, 21)
 
     def test_finds_parenthetical_date_with_prefix(self):
@@ -182,20 +179,12 @@ class TestExtractSectionRefreshedDate:
         assert _extract_section_refreshed_date(content) == date(2026, 3, 13)
 
     def test_refreshed_line_takes_priority_over_header_date(self):
-        content = (
-            "## research: topic (26.3.10)\n"
-            "R[stuff]\n"
-            "refreshed: 26.3.22\n"
-        )
+        content = "## research: topic (26.3.10)\nR[stuff]\nrefreshed: 26.3.22\n"
         assert _extract_section_refreshed_date(content) == date(2026, 3, 22)
 
     def test_multiple_research_headers_last_date_wins(self):
         content = (
-            "## research\n"
-            "R[first]\n"
-            "## research (rerun 26.3.13)\n"
-            "R[second]\n"
-            "## other\n"
+            "## research\nR[first]\n## research (rerun 26.3.13)\nR[second]\n## other\n"
         )
         assert _extract_section_refreshed_date(content) == date(2026, 3, 13)
 
@@ -252,11 +241,7 @@ class TestExtractResearchDates:
         assert results[0][1] == date(2026, 3, 21)
 
     def test_section_date_takes_priority_over_fallback(self):
-        content = (
-            "## research\n"
-            "R[topic]: stuff\n"
-            "refreshed: 26.3.22\n"
-        )
+        content = "## research\nR[topic]: stuff\nrefreshed: 26.3.22\n"
         results = _extract_research_dates(content, fallback_date=date(2026, 3, 1))
         assert len(results) == 1
         assert results[0][1] == date(2026, 3, 22)
@@ -342,7 +327,9 @@ class TestConsolidateTeam:
 
 class TestExtractResearchSection:
     def test_extracts_section(self):
-        content = "## intro\nstuff\n## research\nR[topic]\nrefreshed: 26.3.18\n## other\nmore"
+        content = (
+            "## intro\nstuff\n## research\nR[topic]\nrefreshed: 26.3.18\n## other\nmore"
+        )
         section = _extract_research_section(content)
         assert "R[topic]" in section
         assert "## other" not in section
@@ -417,11 +404,7 @@ class TestFindStaleResearch:
 
     def test_research_section_only_no_date_is_flagged(self):
         """R[] blocks with genuinely no date should still be flagged."""
-        content = (
-            "## research\n"
-            "R[topic-without-any-date]: stuff\n"
-            "## other\n"
-        )
+        content = "## research\nR[topic-without-any-date]: stuff\n## other\n"
         results = _find_stale_research(content, research_section_only=True)
         assert len(results) == 1
         assert results[0]["reason"] == "no_date_found"
