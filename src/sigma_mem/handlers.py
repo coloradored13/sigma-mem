@@ -319,9 +319,11 @@ def _get_project_names(memory_dir: Path) -> list[str]:
 def _parse_agent_roster_entry(roster_content: str, agent_name: str) -> dict[str, str]:
     """Extract an agent's domain and wake-for from roster content."""
     for line in roster_content.splitlines():
-        if not line.strip().startswith(agent_name):
-            continue
         parts = line.split("|")
+        # Match on exact first field to avoid prefix collisions
+        # (e.g., "tech" matching "tech-architect" and "technical-writer")
+        if parts[0].strip() != agent_name:
+            continue
         entry: dict[str, str] = {}
         for part in parts:
             part = part.strip()
