@@ -1,6 +1,6 @@
 """Tests for dream consolidation — all four phases, personal + team scope."""
 
-from datetime import date, timedelta
+from datetime import date
 
 import pytest
 
