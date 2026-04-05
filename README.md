@@ -109,6 +109,10 @@ Add to `~/.claude.json`:
 }
 ```
 
+### Security model
+
+sigma-mem uses stdio transport and trusts all connected MCP clients. File access is restricted to the configured memory and teams directories via path validation, but there is no authentication layer. Do not expose the server to untrusted clients.
+
 ### Memory directory structure
 
 ```

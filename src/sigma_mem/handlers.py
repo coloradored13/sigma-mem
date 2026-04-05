@@ -249,18 +249,12 @@ def _validate_team_name(teams_dir: Path, team_name: str) -> Path | None:
     """Validate that team_name resolves within teams_dir. Returns resolved path or None.
 
     Supports symlinked team directories (e.g., ~/.claude/teams/sigma-review
-    symlinked to a repo). Validates the unresolved path stays within teams_dir,
-    then returns the resolved path for actual file access.
+    symlinked to a repo). Resolves both paths before comparing to prevent
+    traversal via ``../`` sequences.
     """
-    # Validate the logical path (before symlink resolution) to prevent traversal
-    logical = teams_dir / team_name
-    try:
-        # Use PurePosixPath-level check: no ".." escaping teams_dir
-        logical.relative_to(teams_dir)
-    except ValueError:
+    resolved = (teams_dir / team_name).resolve()
+    if not resolved.is_relative_to(teams_dir.resolve()):
         return None
-    # Return resolved path for actual file I/O (follows symlinks)
-    resolved = logical.resolve()
     if not resolved.exists():
         return None
     return resolved
@@ -663,13 +657,27 @@ def handle_log_failure(
     return handle_store_memory(entry, "failures.md", memory_dir)
 
 
+_BELIEF_PREFIXES = ("C[", "C~[", "~[", "¬[", "![", "R[")
+
+
 def handle_update_belief(
     old: str, new: str, memory_dir: Path = DEFAULT_MEMORY_DIR
 ) -> dict[str, Any]:
-    """Update a stored belief in MEMORY.md."""
+    """Update a stored belief in MEMORY.md.
+
+    Only entries that start with a recognized belief prefix (C[, C~[, ~[,
+    etc.) can be updated. This prevents arbitrary substring replacement.
+    """
     filepath = memory_dir / "MEMORY.md"
     if not filepath.exists():
         return {"error": "MEMORY.md not found", "_state": "correcting"}
+
+    old_stripped = old.strip()
+    if not any(old_stripped.startswith(prefix) for prefix in _BELIEF_PREFIXES):
+        return {
+            "error": "old must be a belief entry starting with C[, C~[, ~[, ¬[, ![, or R[",
+            "_state": "correcting",
+        }
 
     content = filepath.read_text()
     if old not in content:

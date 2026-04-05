@@ -267,6 +267,11 @@ class TestValidateTeamName:
     def test_traversal_blocked(self, team_dir):
         assert _validate_team_name(team_dir, "../../etc") is None
 
+    def test_traversal_with_intermediate_dotdot(self, team_dir):
+        """Traversal via team_name that starts valid but escapes with .."""
+        # This is the critical case: teams_dir/test-team/../../ resolves outside
+        assert _validate_team_name(team_dir, "test-team/../../../etc") is None
+
     def test_absolute_path_in_name(self, team_dir):
         assert _validate_team_name(team_dir, "/etc/passwd") is None
 

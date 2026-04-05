@@ -734,6 +734,10 @@ def dream(
     if scope in ("team", "all"):
         team_names: list[str] = []
         if team_name:
+            # Validate team_name to prevent path traversal
+            resolved = (teams_dir / team_name).resolve()
+            if not resolved.is_relative_to(teams_dir.resolve()):
+                return {"error": f"Invalid team name: {team_name}"}
             team_names = [team_name]
         elif teams_dir.exists():
             team_names = [

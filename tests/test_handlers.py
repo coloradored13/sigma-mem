@@ -113,14 +113,21 @@ class TestHandleUpdateBelief:
     def test_replaces_belief(self, tmp_path):
         mem = tmp_path / "MEMORY.md"
         mem.write_text("C[old belief|1|26.3]\n")
-        result = handle_update_belief("old belief", "new belief", tmp_path)
+        result = handle_update_belief("C[old belief|1|26.3]", "C[new belief|2|26.4]", tmp_path)
         assert "updated" in result
-        assert "new belief" in mem.read_text()
+        assert "C[new belief|2|26.4]" in mem.read_text()
+
+    def test_rejects_non_belief_old(self, tmp_path):
+        mem = tmp_path / "MEMORY.md"
+        mem.write_text("C[old belief|1|26.3]\nsome plain text\n")
+        result = handle_update_belief("some plain text", "injected", tmp_path)
+        assert "error" in result
+        assert "some plain text" in mem.read_text()  # unchanged
 
     def test_old_not_found(self, tmp_path):
         mem = tmp_path / "MEMORY.md"
         mem.write_text("C[something else|1|26.3]\n")
-        result = handle_update_belief("nonexistent", "new", tmp_path)
+        result = handle_update_belief("C[nonexistent]", "C[new]", tmp_path)
         assert "error" in result
 
 
