@@ -115,6 +115,29 @@ To connect from Claude Code, add to `~/.claude.json`:
 
 Once configured, the LLM can call `recall("context description")` as a tool. The server detects the conversation context, returns relevant memories, and advertises the next set of available actions.
 
+### Multi-agent access
+
+MCP servers are session-level infrastructure — every agent in a Claude Code session shares access to the same MCP tools. When you spawn agents (via the Agent tool or TeamCreate), they inherit the parent session's MCP connections automatically.
+
+This means a multi-agent team can coordinate through sigma-mem without any extra wiring:
+
+```
+Claude Code session starts
+  └─ spawns sigma-mem process (stdio)
+
+User starts a review
+  └─ lead agent calls recall("starting review of auth module")
+      └─ sigma-mem returns core memory + project context
+  └─ lead spawns tech-architect agent
+      └─ tech-architect calls recall("I'm tech-architect on sigma-review, reviewing auth")
+          └─ sigma-mem detects team_work state, returns agent boot package
+          └─ tech-architect now has: personal memory, team decisions, roster, teammates
+  └─ lead spawns product-strategist agent
+      └─ same pattern — each agent boots with its own identity and shared team context
+```
+
+No agent needs to know how sigma-mem is connected. They call `recall()` like any other tool, and the state machine handles context detection and memory routing.
+
 ### Security model
 
 sigma-mem trusts all connected MCP clients (inherent to stdio transport). File access is restricted to the configured memory and teams directories via path validation, but there is no authentication layer. Do not expose the server to untrusted clients.
