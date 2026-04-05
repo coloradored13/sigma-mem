@@ -94,9 +94,13 @@ Requires [hateoas-agent](https://github.com/coloradored13/hateoas-agent) >= 0.1.
 
 ## Usage
 
-### As an MCP server (Claude Code)
+### As an MCP server
 
-Add to `~/.claude.json`:
+sigma-mem runs as an [MCP (Model Context Protocol)](https://modelcontextprotocol.io) server. MCP is an open standard for connecting LLMs to external tools — the LLM client discovers available tools at runtime and calls them through the protocol, rather than having tools hardcoded into the application.
+
+sigma-mem uses stdio transport: the MCP client (e.g., Claude Code) spawns the `sigma-mem` process and communicates over stdin/stdout. The server exposes `recall` as the gateway tool. After each call, the available tools update based on the detected state — so an LLM in `team_work` state sees team actions, while one in `correcting` state sees belief-update actions.
+
+To connect from Claude Code, add to `~/.claude.json`:
 
 ```json
 {
@@ -109,9 +113,11 @@ Add to `~/.claude.json`:
 }
 ```
 
+Once configured, the LLM can call `recall("context description")` as a tool. The server detects the conversation context, returns relevant memories, and advertises the next set of available actions.
+
 ### Security model
 
-sigma-mem uses stdio transport and trusts all connected MCP clients. File access is restricted to the configured memory and teams directories via path validation, but there is no authentication layer. Do not expose the server to untrusted clients.
+sigma-mem trusts all connected MCP clients (inherent to stdio transport). File access is restricted to the configured memory and teams directories via path validation, but there is no authentication layer. Do not expose the server to untrusted clients.
 
 ### Memory directory structure
 
