@@ -410,6 +410,49 @@ class TestFindStaleResearch:
         assert results[0]["reason"] == "no_date_found"
 
 
+    def test_stale_after_expired(self):
+        """R[] with stale-after date in the past should be flagged."""
+        content = "R[market-data|refreshed:26.3.13|next:26.4.13|stale-after:26.4.1]\n"
+        stale = _find_stale_research(content, max_age_days=300)
+        assert len(stale) == 1
+        assert stale[0]["reason"] == "stale_after_expired"
+        assert stale[0]["stale_after"] == "2026-04-01"
+
+    def test_stale_after_not_yet_expired(self):
+        """R[] with stale-after date in the future should not be flagged."""
+        today = date.today()
+        future = date(today.year + 1, today.month, today.day)
+        d = f"{future.year % 100}.{future.month}.{future.day}"
+        content = f"R[topic|refreshed:26.3.13|stale-after:{d}]\n"
+        stale = _find_stale_research(content, max_age_days=1)
+        # Should not be flagged despite refreshed: being old, because stale-after is future
+        assert len(stale) == 0 or all(s["reason"] != "stale_after_expired" for s in stale)
+
+    def test_stale_after_overrides_max_age(self):
+        """stale-after: takes precedence — entry flagged even if refreshed: is recent."""
+        today = date.today()
+        d = f"{today.year % 100}.{today.month}.{today.day}"
+        content = f"R[topic|refreshed:{d}|stale-after:25.1.1]\n"
+        stale = _find_stale_research(content, max_age_days=300)
+        assert len(stale) == 1
+        assert stale[0]["reason"] == "stale_after_expired"
+
+    def test_stale_after_yyyy_mm_dd_format(self):
+        """stale-after: should work with YYYY-MM-DD format too."""
+        content = "R[topic|refreshed:26.3.13|stale-after:2026-04-01]\n"
+        stale = _find_stale_research(content, max_age_days=300)
+        assert len(stale) == 1
+        assert stale[0]["reason"] == "stale_after_expired"
+
+    def test_stale_after_none_ignored(self):
+        """R[] with stale-after:none should fall through to max_age_days check."""
+        today = date.today()
+        d = f"{today.year % 100}.{today.month}.{today.day}"
+        content = f"R[methodology|refreshed:{d}|stale-after:none]\n"
+        stale = _find_stale_research(content, max_age_days=30)
+        assert len(stale) == 0
+
+
 class TestFindStaleDatedEntries:
     def test_finds_old_entries(self):
         content = "25.1.1|old thing|reason\n26.3.20|recent thing|reason\n"

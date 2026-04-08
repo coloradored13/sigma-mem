@@ -248,14 +248,35 @@ def _extract_research_section(content: str) -> str | None:
     return "\n".join(section_lines)
 
 
+def _extract_stale_after(line: str) -> date | None:
+    """Extract stale-after: date from an R[] line.
+
+    Supports both YY.M.D and YYYY-MM-DD formats:
+        stale-after:26.5.13
+        stale-after:2026-05-13
+    Returns None if no stale-after field or if value is 'none'.
+    """
+    match = re.search(
+        r"stale-after:\s*(\d{4}-\d{2}-\d{2}|\d{2}\.\d{1,2}\.\d{1,2})",
+        line,
+    )
+    if match:
+        return _parse_date(match.group(1))
+    return None
+
+
 def _find_stale_research(
     content: str, max_age_days: int = 30, research_section_only: bool = False
 ) -> list[dict[str, Any]]:
-    """Find R[] blocks older than max_age_days.
+    """Find R[] blocks that are stale.
+
+    An R[] block is stale if:
+    1. It has a stale-after: date that has passed (hard expiry, overrides max_age_days), OR
+    2. Its refreshed: date is older than max_age_days (soft expiry)
 
     Args:
         content: File content to scan.
-        max_age_days: Threshold for staleness.
+        max_age_days: Threshold for staleness when no stale-after date.
         research_section_only: If True, only scan within ## research section.
             Use for team agent memories where R[] blocks appear in findings,
             calibration, and other non-research sections.
@@ -274,7 +295,19 @@ def _find_stale_research(
     for line, parsed_date in _extract_research_dates(
         content, fallback_date=fallback_date
     ):
-        if parsed_date is None:
+        # Check stale-after: first (hard expiry takes precedence)
+        stale_after = _extract_stale_after(line)
+        if stale_after is not None and today > stale_after:
+            stale.append(
+                {
+                    "line": line[:80],
+                    "date": str(parsed_date) if parsed_date else None,
+                    "stale_after": str(stale_after),
+                    "age_days": (today - stale_after).days,
+                    "reason": "stale_after_expired",
+                }
+            )
+        elif parsed_date is None:
             stale.append({"line": line[:80], "reason": "no_date_found"})
         elif (today - parsed_date).days > max_age_days:
             stale.append(
