@@ -275,6 +275,21 @@ class TestValidateTeamName:
     def test_absolute_path_in_name(self, team_dir):
         assert _validate_team_name(team_dir, "/etc/passwd") is None
 
+    def test_symlinked_team_directory(self, team_dir, tmp_path):
+        """Symlinked team directories should be accepted — not rejected by traversal check."""
+        # Create real team dir outside teams_dir (simulates git-tracked infra repo)
+        real_dir = tmp_path / "external-repo" / "teams" / "symlinked-team"
+        real_dir.mkdir(parents=True)
+        # Symlink from teams_dir into external location
+        symlink = team_dir / "symlinked-team"
+        symlink.symlink_to(real_dir)
+        result = _validate_team_name(team_dir, "symlinked-team")
+        assert result is not None
+        assert result == real_dir.resolve()
+
+    def test_slash_in_name_blocked(self, team_dir):
+        assert _validate_team_name(team_dir, "team/subdir") is None
+
 
 class TestStoreTeamDecisionTraversal:
     def test_traversal_blocked_in_team_name(self, team_dir):

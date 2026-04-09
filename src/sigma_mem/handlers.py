@@ -249,15 +249,15 @@ def _validate_team_name(teams_dir: Path, team_name: str) -> Path | None:
     """Validate that team_name resolves within teams_dir. Returns resolved path or None.
 
     Supports symlinked team directories (e.g., ~/.claude/teams/sigma-review
-    symlinked to a repo). Resolves both paths before comparing to prevent
-    traversal via ``../`` sequences.
+    symlinked to a repo). Validates the team name directly to block traversal,
+    then resolves the symlink target for downstream use.
     """
-    resolved = (teams_dir / team_name).resolve()
-    if not resolved.is_relative_to(teams_dir.resolve()):
+    if ".." in team_name or "/" in team_name:
         return None
-    if not resolved.exists():
+    team_path = teams_dir / team_name
+    if not team_path.exists():
         return None
-    return resolved
+    return team_path.resolve()
 
 
 def _detect_agent_identity(context: str, team_name: str, teams_dir: Path) -> str | None:
