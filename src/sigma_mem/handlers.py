@@ -526,7 +526,7 @@ def handle_get_meta(memory_dir: Path = DEFAULT_MEMORY_DIR) -> dict[str, Any]:
     """Load system evolution log from meta.md."""
     content = _read_file(memory_dir, "meta.md")
     mem, actions = _split_content_and_actions(content)
-    return {"meta": mem, "navigation": actions, "_state": "idle"}
+    return {"meta": mem, "navigation": actions}
 
 
 def handle_full_refresh(memory_dir: Path = DEFAULT_MEMORY_DIR) -> dict[str, Any]:
@@ -572,7 +572,7 @@ def handle_check_integrity(memory_dir: Path = DEFAULT_MEMORY_DIR) -> dict[str, A
     for md_file in sorted(memory_dir.glob("*.md")):
         report = verify_file_integrity(md_file)
         reports.append(report)
-    return {"integrity_reports": reports, "_state": "idle"}
+    return {"integrity_reports": reports}
 
 
 # --- Write handlers ---
@@ -606,13 +606,12 @@ def handle_store_memory(
         return {
             "error": "Entry contains →-prefixed lines which are reserved for navigation. "
             "Use |→ within a line instead of starting a line with →.",
-            "_state": "idle",
         }
     filepath = _validate_path(memory_dir, file)
     if filepath is None:
-        return {"error": f"Invalid path: {file}", "_state": "idle"}
+        return {"error": f"Invalid path: {file}"}
     if not filepath.exists():
-        return {"error": f"File not found: {file}", "_state": "idle"}
+        return {"error": f"File not found: {file}"}
 
     content = filepath.read_text()
     mem_content, actions = _split_content_and_actions(content)
@@ -623,7 +622,7 @@ def handle_store_memory(
         new_content += "\n" + "\n".join(actions) + "\n"
 
     filepath.write_text(new_content)
-    result: dict[str, Any] = {"stored": entry, "file": file, "_state": "idle"}
+    result: dict[str, Any] = {"stored": entry, "file": file}
     notation_warning = _check_notation(entry)
     if notation_warning:
         result["format_warning"] = notation_warning
@@ -1139,7 +1138,6 @@ def handle_search_memory(
         "query": query,
         "matches": results,
         "anti_memory_warnings": warnings,
-        "_state": "idle",
     }
 
 

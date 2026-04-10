@@ -268,7 +268,7 @@ class TestHandleGetMeta:
     def test_reads_meta(self, mem_dir):
         result = handle_get_meta(mem_dir)
         assert "initial system" in result["meta"]
-        assert result["_state"] == "idle"
+        assert "_state" not in result  # universal handler preserves caller state
 
 
 class TestHandleFullRefresh:
