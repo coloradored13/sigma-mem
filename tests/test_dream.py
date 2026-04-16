@@ -409,7 +409,6 @@ class TestFindStaleResearch:
         assert len(results) == 1
         assert results[0]["reason"] == "no_date_found"
 
-
     def test_stale_after_expired(self):
         """R[] with stale-after date in the past should be flagged."""
         content = "R[market-data|refreshed:26.3.13|next:26.4.13|stale-after:26.4.1]\n"
@@ -426,7 +425,9 @@ class TestFindStaleResearch:
         content = f"R[topic|refreshed:26.3.13|stale-after:{d}]\n"
         stale = _find_stale_research(content, max_age_days=1)
         # Should not be flagged despite refreshed: being old, because stale-after is future
-        assert len(stale) == 0 or all(s["reason"] != "stale_after_expired" for s in stale)
+        assert len(stale) == 0 or all(
+            s["reason"] != "stale_after_expired" for s in stale
+        )
 
     def test_stale_after_overrides_max_age(self):
         """stale-after: takes precedence — entry flagged even if refreshed: is recent."""
